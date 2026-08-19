@@ -2,9 +2,9 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { SERVICES } from '@app/common';
-import { ApiGatewayAuthController } from './auth.controller';
-import { SuperAdminController } from './superadmin.controller';
-import { OrganizationModulesController } from './organization-modules.controller';
+import { ApiGatewayAuthController } from './controllers/auth.controller';
+import { SuperAdminController } from './controllers/superadmin.controller';
+import { OrganizationModulesController } from './controllers/organization-modules.controller';
 
 @Module({
   imports: [
@@ -31,4 +31,3 @@ import { OrganizationModulesController } from './organization-modules.controller
   ],
 })
 export class ApiGatewayModule {}
-
