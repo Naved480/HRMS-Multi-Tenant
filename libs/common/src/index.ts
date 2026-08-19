@@ -15,6 +15,11 @@ export const MESSAGE_PATTERNS = {
   AUTH: {
     REGISTER_TENANT: 'auth.register_tenant',
     LOGIN: 'auth.login',
+    SUPERADMIN_LOGIN: 'auth.superadmin_login',
+    ONBOARD_ORGANIZATION: 'auth.onboard_organization',
+    FORGOT_PASSWORD: 'auth.forgot_password',
+    VERIFY_OTP: 'auth.verify_otp',
+    RESET_PASSWORD: 'auth.reset_password',
   },
   ORGANIZATION: {
     GET_EMPLOYEES: 'org.get_employees',
@@ -24,3 +29,4 @@ export const MESSAGE_PATTERNS = {
     LINK_OUTPUT: 'work.link_output',
   },
 };
+

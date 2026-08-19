@@ -4,11 +4,13 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { SequelizeModule } from '@nestjs/sequelize';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
-import { Tenant, User, Role, EmployeeProfile } from '../../database/models';
+import { Tenant, User, Role, EmployeeProfile, SuperAdmin, TenantDatabaseConfig } from '../../database/models';
+import { OtpService } from '../../../apps/auth-service/src/otp.service';
+import { TenantConnectionManager } from '../../core/tenant-connection.manager';
 
 @Module({
   imports: [
-    SequelizeModule.forFeature([Tenant, User, Role, EmployeeProfile]),
+    SequelizeModule.forFeature([Tenant, User, Role, EmployeeProfile, SuperAdmin, TenantDatabaseConfig]),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -19,7 +21,8 @@ import { Tenant, User, Role, EmployeeProfile } from '../../database/models';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService],
-  exports: [AuthService, JwtModule],
+  providers: [AuthService, OtpService, TenantConnectionManager],
+  exports: [AuthService, JwtModule, TenantConnectionManager],
 })
 export class AuthModule {}
+

@@ -3,6 +3,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { SERVICES } from '@app/common';
 import { ApiGatewayAuthController } from './auth.controller';
+import { SuperAdminController } from './superadmin.controller';
+import { OrganizationModulesController } from './organization-modules.controller';
 
 @Module({
   imports: [
@@ -22,6 +24,11 @@ import { ApiGatewayAuthController } from './auth.controller';
       },
     ]),
   ],
-  controllers: [ApiGatewayAuthController],
+  controllers: [
+    ApiGatewayAuthController,
+    SuperAdminController,
+    OrganizationModulesController,
+  ],
 })
 export class ApiGatewayModule {}
+

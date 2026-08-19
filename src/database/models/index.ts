@@ -597,6 +597,371 @@ export class CourseEnrollment extends Model {
   declare status: string;
 }
 
+// ============================================================================
+// SUPER ADMIN & SYSTEM BOUNDARY
+// ============================================================================
+
+@Table({ tableName: 'super_admins' })
+export class SuperAdmin extends Model {
+  @IsUUID(4)
+  @PrimaryKey
+  @Default(DataType.UUIDV4)
+  @Column
+  declare id: string;
+
+  @Column({ allowNull: false, unique: true })
+  declare email: string;
+
+  @Column({ allowNull: false })
+  declare passwordHash: string;
+
+  @Column
+  declare name: string;
+
+  @Column
+  declare resetOtp: string;
+
+  @Column(DataType.DATE)
+  declare resetOtpExpiresAt: Date;
+
+  @Column(DataType.ARRAY(DataType.STRING))
+  declare passwordHistory: string[];
+
+  @Default('active')
+  @Column
+  declare status: string;
+}
+
+@Table({ tableName: 'tenant_database_configs' })
+export class TenantDatabaseConfig extends Model {
+  @IsUUID(4)
+  @PrimaryKey
+  @Default(DataType.UUIDV4)
+  @Column
+  declare id: string;
+
+  @ForeignKey(() => Tenant)
+  @Column({ allowNull: false, unique: true })
+  declare tenantId: string;
+
+  @Column({ allowNull: false })
+  declare dbHost: string;
+
+  @Column({ allowNull: false })
+  declare dbPort: number;
+
+  @Column({ allowNull: false })
+  declare dbName: string;
+
+  @Column({ allowNull: false })
+  declare dbUsername: string;
+
+  @Column({ allowNull: false })
+  declare dbPasswordHash: string;
+
+  @Default('active')
+  @Column
+  declare connectionStatus: string;
+}
+
+// ============================================================================
+// GEOFENCING & POS MANAGEMENT
+// ============================================================================
+
+@Table({ tableName: 'geofence_locations' })
+export class GeofenceLocation extends Model {
+  @IsUUID(4)
+  @PrimaryKey
+  @Default(DataType.UUIDV4)
+  @Column
+  declare id: string;
+
+  @ForeignKey(() => Tenant)
+  @Column({ allowNull: false })
+  declare tenantId: string;
+
+  @Column({ allowNull: false })
+  declare name: string;
+
+  @Column(DataType.FLOAT)
+  declare latitude: number;
+
+  @Column(DataType.FLOAT)
+  declare longitude: number;
+
+  @Column(DataType.FLOAT)
+  declare radiusMeters: number;
+}
+
+@Table({ tableName: 'pos_transactions' })
+export class POSTransaction extends Model {
+  @IsUUID(4)
+  @PrimaryKey
+  @Default(DataType.UUIDV4)
+  @Column
+  declare id: string;
+
+  @ForeignKey(() => Tenant)
+  @Column({ allowNull: false })
+  declare tenantId: string;
+
+  @ForeignKey(() => EmployeeProfile)
+  @Column
+  declare cashierEmployeeId: string;
+
+  @Column(DataType.DECIMAL(10, 2))
+  declare totalAmount: number;
+
+  @Column
+  declare paymentMethod: string;
+
+  @Default('completed')
+  @Column
+  declare status: string;
+}
+
+// ============================================================================
+// ANNOUNCEMENTS, SURVEYS & COMMUNITY
+// ============================================================================
+
+@Table({ tableName: 'announcements' })
+export class Announcement extends Model {
+  @IsUUID(4)
+  @PrimaryKey
+  @Default(DataType.UUIDV4)
+  @Column
+  declare id: string;
+
+  @ForeignKey(() => Tenant)
+  @Column({ allowNull: false })
+  declare tenantId: string;
+
+  @Column({ allowNull: false })
+  declare title: string;
+
+  @Column(DataType.TEXT)
+  declare content: string;
+
+  @Column
+  declare category: string;
+}
+
+@Table({ tableName: 'surveys' })
+export class Survey extends Model {
+  @IsUUID(4)
+  @PrimaryKey
+  @Default(DataType.UUIDV4)
+  @Column
+  declare id: string;
+
+  @ForeignKey(() => Tenant)
+  @Column({ allowNull: false })
+  declare tenantId: string;
+
+  @Column({ allowNull: false })
+  declare title: string;
+
+  @Column(DataType.JSONB)
+  declare questions: object;
+
+  @Default('active')
+  @Column
+  declare status: string;
+}
+
+@Table({ tableName: 'hr_community_posts' })
+export class HRCommunityPost extends Model {
+  @IsUUID(4)
+  @PrimaryKey
+  @Default(DataType.UUIDV4)
+  @Column
+  declare id: string;
+
+  @ForeignKey(() => Tenant)
+  @Column({ allowNull: false })
+  declare tenantId: string;
+
+  @ForeignKey(() => EmployeeProfile)
+  @Column({ allowNull: false })
+  declare authorEmployeeId: string;
+
+  @Column({ allowNull: false })
+  declare title: string;
+
+  @Column(DataType.TEXT)
+  declare content: string;
+}
+
+// ============================================================================
+// WEB3 / NFT CREDENTIALS & PENALTIES
+// ============================================================================
+
+@Table({ tableName: 'nft_rewards' })
+export class NFTReward extends Model {
+  @IsUUID(4)
+  @PrimaryKey
+  @Default(DataType.UUIDV4)
+  @Column
+  declare id: string;
+
+  @ForeignKey(() => Tenant)
+  @Column({ allowNull: false })
+  declare tenantId: string;
+
+  @ForeignKey(() => EmployeeProfile)
+  @Column({ allowNull: false })
+  declare recipientEmployeeId: string;
+
+  @Column({ allowNull: false })
+  declare badgeTitle: string;
+
+  @Column
+  declare tokenId: string;
+
+  @Column
+  declare contractAddress: string;
+
+  @Column
+  declare transactionHash: string;
+}
+
+@Table({ tableName: 'communication_penalties' })
+export class CommunicationPenalty extends Model {
+  @IsUUID(4)
+  @PrimaryKey
+  @Default(DataType.UUIDV4)
+  @Column
+  declare id: string;
+
+  @ForeignKey(() => Tenant)
+  @Column({ allowNull: false })
+  declare tenantId: string;
+
+  @ForeignKey(() => EmployeeProfile)
+  @Column({ allowNull: false })
+  declare employeeId: string;
+
+  @Column({ allowNull: false })
+  declare reason: string;
+
+  @Column(DataType.DECIMAL(10, 2))
+  declare penaltyAmount: number;
+
+  @Default('pending')
+  @Column
+  declare status: string;
+}
+
+// ============================================================================
+// ASSETS, EXPENSES, TICKETS & WORKFLOWS
+// ============================================================================
+
+@Table({ tableName: 'assets' })
+export class Asset extends Model {
+  @IsUUID(4)
+  @PrimaryKey
+  @Default(DataType.UUIDV4)
+  @Column
+  declare id: string;
+
+  @ForeignKey(() => Tenant)
+  @Column({ allowNull: false })
+  declare tenantId: string;
+
+  @Column({ allowNull: false })
+  declare name: string;
+
+  @Column
+  declare assetTag: string;
+
+  @ForeignKey(() => EmployeeProfile)
+  @Column
+  declare assignedEmployeeId: string;
+
+  @Default('available')
+  @Column
+  declare status: string;
+}
+
+@Table({ tableName: 'expense_claims' })
+export class ExpenseClaim extends Model {
+  @IsUUID(4)
+  @PrimaryKey
+  @Default(DataType.UUIDV4)
+  @Column
+  declare id: string;
+
+  @ForeignKey(() => Tenant)
+  @Column({ allowNull: false })
+  declare tenantId: string;
+
+  @ForeignKey(() => EmployeeProfile)
+  @Column({ allowNull: false })
+  declare employeeId: string;
+
+  @Column(DataType.DECIMAL(10, 2))
+  declare amount: number;
+
+  @Column
+  declare category: string;
+
+  @Column(DataType.TEXT)
+  declare description: string;
+
+  @Default('submitted')
+  @Column
+  declare status: string;
+}
+
+@Table({ tableName: 'tickets' })
+export class Ticket extends Model {
+  @IsUUID(4)
+  @PrimaryKey
+  @Default(DataType.UUIDV4)
+  @Column
+  declare id: string;
+
+  @ForeignKey(() => Tenant)
+  @Column({ allowNull: false })
+  declare tenantId: string;
+
+  @ForeignKey(() => EmployeeProfile)
+  @Column({ allowNull: false })
+  declare requesterEmployeeId: string;
+
+  @Column({ allowNull: false })
+  declare subject: string;
+
+  @Column(DataType.TEXT)
+  declare description: string;
+
+  @Default('open')
+  @Column
+  declare status: string;
+}
+
+@Table({ tableName: 'audit_logs' })
+export class AuditLog extends Model {
+  @IsUUID(4)
+  @PrimaryKey
+  @Default(DataType.UUIDV4)
+  @Column
+  declare id: string;
+
+  @ForeignKey(() => Tenant)
+  @Column
+  declare tenantId: string;
+
+  @Column
+  declare action: string;
+
+  @Column
+  declare performedBy: string;
+
+  @Column(DataType.JSONB)
+  declare details: object;
+}
+
 export const ALL_MODELS = [
   Tenant,
   User,
@@ -618,4 +983,18 @@ export const ALL_MODELS = [
   JobApplication,
   Course,
   CourseEnrollment,
+  SuperAdmin,
+  TenantDatabaseConfig,
+  GeofenceLocation,
+  POSTransaction,
+  Announcement,
+  Survey,
+  HRCommunityPost,
+  NFTReward,
+  CommunicationPenalty,
+  Asset,
+  ExpenseClaim,
+  Ticket,
+  AuditLog,
 ];
+

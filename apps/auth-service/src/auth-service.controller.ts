@@ -2,11 +2,44 @@ import { Controller } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { MESSAGE_PATTERNS } from '@app/common';
 import { AuthService } from '../../../src/modules/auth/auth.service';
-import { RegisterTenantDto, LoginDto } from '../../../src/modules/auth/dto/auth.dto';
+import {
+  RegisterTenantDto,
+  LoginDto,
+  SuperAdminLoginDto,
+  OnboardOrganizationDto,
+  ForgotPasswordDto,
+  VerifyOtpDto,
+  ResetPasswordDto,
+} from '../../../src/modules/auth/dto/auth.dto';
 
 @Controller()
 export class AuthMicroserviceController {
   constructor(private readonly authService: AuthService) {}
+
+  @MessagePattern(MESSAGE_PATTERNS.AUTH.SUPERADMIN_LOGIN)
+  superAdminLogin(@Payload() dto: SuperAdminLoginDto) {
+    return this.authService.superAdminLogin(dto);
+  }
+
+  @MessagePattern(MESSAGE_PATTERNS.AUTH.ONBOARD_ORGANIZATION)
+  onboardOrganization(@Payload() dto: OnboardOrganizationDto) {
+    return this.authService.onboardOrganization(dto);
+  }
+
+  @MessagePattern(MESSAGE_PATTERNS.AUTH.FORGOT_PASSWORD)
+  forgotPassword(@Payload() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto);
+  }
+
+  @MessagePattern(MESSAGE_PATTERNS.AUTH.VERIFY_OTP)
+  verifyOtp(@Payload() dto: VerifyOtpDto) {
+    return this.authService.verifyOtp(dto);
+  }
+
+  @MessagePattern(MESSAGE_PATTERNS.AUTH.RESET_PASSWORD)
+  resetPassword(@Payload() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto);
+  }
 
   @MessagePattern(MESSAGE_PATTERNS.AUTH.REGISTER_TENANT)
   registerTenant(@Payload() dto: RegisterTenantDto) {
@@ -18,3 +51,4 @@ export class AuthMicroserviceController {
     return this.authService.login(dto);
   }
 }
+
