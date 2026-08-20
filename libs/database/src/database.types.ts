@@ -1,22 +1,41 @@
-import { SequelizeOptions } from 'sequelize-typescript';
-
-export interface IDatabaseConfig extends SequelizeOptions {
-  host?: string;
-  port?: number;
-  username?: string;
-  password?: string;
-  database?: string;
+export interface DatabaseConfig {
+  host: string;
+  port: number;
+  username: string;
+  password: string;
+  database: string;
+  dialect: 'postgres' | 'mysql';
+  logging: boolean | ((sql: string) => void);
+  synchronize: boolean;
+  autoLoadEntities: boolean;
+  pool?: {
+    max: number;
+    min: number;
+    idle: number;
+  };
 }
 
-export interface IPaginationOptions {
-  page?: number;
-  limit?: number;
+export interface TenantDatabaseConnection {
+  tenantId: string;
+  host: string;
+  port: number;
+  database: string;
+  username: string;
+  password: string;
+  dialect: 'postgres' | 'mysql';
 }
 
-export interface IPaginatedResult<T> {
-  data: T[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
+export interface DatabaseModuleOptions {
+  isPlatform: boolean;
+  autoLoadEntities?: boolean;
+}
+
+export interface TenantConnectionOptions {
+  tenantId: string;
+  databaseName: string;
+  host: string;
+  port: number;
+  username: string;
+  password: string;
+  dialect: 'postgres' | 'mysql';
 }

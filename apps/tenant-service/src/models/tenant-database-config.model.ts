@@ -4,52 +4,59 @@ import {
   Model,
   DataType,
   PrimaryKey,
-  IsUUID,
   Default,
-  ForeignKey,
-  BelongsTo,
   CreatedAt,
   UpdatedAt,
+  ForeignKey,
+  BelongsTo,
 } from 'sequelize-typescript';
 import { Tenant } from './tenant.model';
 
-@Table({ tableName: 'tenant_database_configs' })
+@Table({ tableName: 'tenant_database_configs', timestamps: true })
 export class TenantDatabaseConfig extends Model {
-  @IsUUID(4)
   @PrimaryKey
   @Default(DataType.UUIDV4)
-  @Column
+  @Column(DataType.UUID)
   declare id: string;
 
   @ForeignKey(() => Tenant)
-  @Column({ allowNull: false, unique: true })
+  @Column({ type: DataType.UUID, allowNull: false, unique: true })
   declare tenantId: string;
 
-  @Column({ allowNull: false })
-  declare dbHost: string;
+  @BelongsTo(() => Tenant)
+  declare tenant: Tenant;
 
-  @Column({ allowNull: false })
-  declare dbPort: number;
+  @Column({ type: DataType.STRING, allowNull: false })
+  declare databaseName: string;
 
-  @Column({ allowNull: false })
-  declare dbName: string;
+  @Column({ type: DataType.STRING, allowNull: false })
+  declare host: string;
 
-  @Column({ allowNull: false })
-  declare dbUsername: string;
+  @Column({ type: DataType.INTEGER, allowNull: false })
+  declare port: number;
 
-  @Column({ allowNull: false })
-  declare dbPasswordHash: string;
+  @Column({ type: DataType.STRING, allowNull: false })
+  declare username: string;
 
-  @Default('active')
-  @Column
-  declare connectionStatus: string;
+  @Column({ type: DataType.STRING, allowNull: false })
+  declare password: string;
+
+  @Column({ type: DataType.ENUM('postgres', 'mysql'), defaultValue: 'postgres' })
+  declare dialect: 'postgres' | 'mysql';
+
+  @Column({ type: DataType.BOOLEAN, defaultValue: false })
+  declare isActive: boolean;
+
+  @Column({ type: DataType.JSON, allowNull: true })
+  declare poolConfig: {
+    max: number;
+    min: number;
+    idle: number;
+  };
 
   @CreatedAt
   declare createdAt: Date;
 
   @UpdatedAt
   declare updatedAt: Date;
-
-  @BelongsTo(() => Tenant)
-  declare tenant: Tenant;
 }

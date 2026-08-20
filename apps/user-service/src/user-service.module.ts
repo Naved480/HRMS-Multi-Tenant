@@ -1,19 +1,33 @@
-import { Module } from '@nestjs/common';
+import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { SequelizeModule } from '@nestjs/sequelize';
-import { DatabaseModule } from '@app/database';
+import {
+  TenantContextModule,
+  TenantResolverMiddleware,
+} from '@app/tenant-context';
 import { UserServiceController } from './user-service.controller';
-import { UserServiceService } from './user-service.service';
-import { User, Role, Permission, UserRole, RolePermission } from './models';
+import { UserService } from './services/user.service';
+import { RoleService } from './services/role.service';
+import { TenantModelProviderService } from './services/tenant-model-provider.service';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    DatabaseModule,
-    SequelizeModule.forFeature([User, Role, Permission, UserRole, RolePermission]),
+    TenantContextModule,
   ],
   controllers: [UserServiceController],
-  providers: [UserServiceService],
-  exports: [UserServiceService],
+  providers: [
+    TenantModelProviderService,
+    UserService,
+    RoleService,
+  ],
+  exports: [
+    TenantModelProviderService,
+    UserService,
+    RoleService,
+  ],
 })
-export class UserServiceModule {}
+export class UserServiceModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(TenantResolverMiddleware).forRoutes('*');
+  }
+}

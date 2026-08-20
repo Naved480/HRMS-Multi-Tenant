@@ -13,20 +13,20 @@ import {
 import { User } from './user.model';
 import { Role } from './role.model';
 
-@Table({ tableName: 'user_roles' })
+@Table({ tableName: 'user_roles', timestamps: true })
 export class UserRole extends Model {
   @IsUUID(4)
   @PrimaryKey
   @Default(DataType.UUIDV4)
-  @Column
+  @Column(DataType.UUID)
   declare id: string;
 
   @ForeignKey(() => User)
-  @Column({ allowNull: false })
+  @Column({ type: DataType.UUID, allowNull: false })
   declare userId: string;
 
   @ForeignKey(() => Role)
-  @Column({ allowNull: false })
+  @Column({ type: DataType.UUID, allowNull: false })
   declare roleId: string;
 
   @CreatedAt

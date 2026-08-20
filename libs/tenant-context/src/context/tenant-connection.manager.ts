@@ -1,64 +1,67 @@
-import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Sequelize } from 'sequelize-typescript';
-
-export interface OrgDbConnectionConfig {
-  tenantId: string;
-  dbHost: string;
-  dbPort: number;
-  dbName: string;
-  dbUsername: string;
-  dbPasswordHash: string;
-}
+import { TenantConnectionOptions } from '@app/database';
 
 @Injectable()
-export class TenantConnectionManager implements OnModuleDestroy {
-  private readonly logger = new Logger(TenantConnectionManager.name);
-  private readonly connections = new Map<string, Sequelize>();
+export class TenantConnectionManager {
+  private tenantConnections: Map<string, Sequelize> = new Map();
 
   /**
-   * Get existing or establish new Sequelize DB connection for a specific organization (tenant).
+   * Create or retrieve connection for a tenant
    */
-  async getTenantConnection(config: OrgDbConnectionConfig, models?: any[]): Promise<Sequelize> {
-    if (this.connections.has(config.tenantId)) {
-      return this.connections.get(config.tenantId)!;
+  async getConnection(options: TenantConnectionOptions): Promise<Sequelize> {
+    const key = options.tenantId;
+
+    if (this.tenantConnections.has(key)) {
+      return this.tenantConnections.get(key)!;
     }
 
-    this.logger.log(`Establishing dedicated database connection for Tenant: ${config.tenantId} (${config.dbName})`);
-
-    const sequelize = new Sequelize({
-      dialect: 'postgres',
-      host: config.dbHost,
-      port: config.dbPort,
-      username: config.dbUsername,
-      password: config.dbPasswordHash,
-      database: config.dbName,
-      models: models || [],
-      logging: false,
+    const connection = new Sequelize({
+      host: options.host,
+      port: options.port,
+      username: options.username,
+      password: options.password,
+      database: options.databaseName,
+      dialect: options.dialect,
+      logging: process.env.NODE_ENV === 'development' ? console.log : false,
+      pool: {
+        max: 5,
+        min: 1,
+        idle: 10000,
+      },
     });
 
-    await sequelize.authenticate();
-    this.connections.set(config.tenantId, sequelize);
-    return sequelize;
+    await connection.authenticate();
+    this.tenantConnections.set(key, connection);
+
+    return connection;
   }
 
   /**
-   * Auto-provisions and syncs a separate dedicated database when a SuperAdmin onboards an organization.
+   * Close connection for a tenant
    */
-  async provisionOrganizationDatabase(config: OrgDbConnectionConfig, models?: any[]): Promise<void> {
-    this.logger.log(`Provisioning database '${config.dbName}' for Organization Tenant ID ${config.tenantId}`);
-
-    const connection = await this.getTenantConnection(config, models);
-    if (models && models.length > 0) {
-      await connection.sync({ alter: true });
+  async closeConnection(tenantId: string): Promise<void> {
+    const connection = this.tenantConnections.get(tenantId);
+    if (connection) {
+      await connection.close();
+      this.tenantConnections.delete(tenantId);
     }
-    this.logger.log(`Database schema successfully provisioned for Organization: ${config.tenantId}`);
   }
 
-  async onModuleDestroy() {
-    for (const [tenantId, sequelize] of this.connections.entries()) {
-      this.logger.log(`Closing connection for Tenant ID ${tenantId}`);
-      await sequelize.close();
+  /**
+   * Close all tenant connections
+   */
+  async closeAllConnections(): Promise<void> {
+    for (const [tenantId, connection] of this.tenantConnections.entries()) {
+      await connection.close();
+      this.tenantConnections.delete(tenantId);
     }
-    this.connections.clear();
+  }
+
+  /**
+   * Get all active tenant connections
+   */
+  getActiveConnections(): Map<string, Sequelize> {
+    return this.tenantConnections;
   }
 }

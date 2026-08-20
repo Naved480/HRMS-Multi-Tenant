@@ -1,4 +1,4 @@
-export * from './tenant.model';
-export * from './tenant-database-config.model';
-export * from './department.model';
-export * from './designation.model';
+export { Tenant } from './tenant.model';
+export { TenantDatabaseConfig } from './tenant-database-config.model';
+export { Department } from './department.model';
+export { Designation } from './designation.model';

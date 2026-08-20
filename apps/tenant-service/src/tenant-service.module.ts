@@ -1,19 +1,34 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
 import { SequelizeModule } from '@nestjs/sequelize';
 import { DatabaseModule } from '@app/database';
+import { TenantContextModule } from '@app/tenant-context';
+import { TenantService } from './services/tenant.service';
+import { TenantDatabaseConfigService } from './services/tenant-database-config.service';
+import { TenantProvisioningService } from './services/tenant-provisioning.service';
 import { TenantServiceController } from './tenant-service.controller';
-import { TenantServiceService } from './tenant-service.service';
-import { Tenant, TenantDatabaseConfig, Department, Designation } from './models';
+import {
+  Tenant,
+  TenantDatabaseConfig,
+  Department,
+  Designation,
+} from './models';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
-    DatabaseModule,
+    DatabaseModule.forRoot({ isPlatform: true }),
     SequelizeModule.forFeature([Tenant, TenantDatabaseConfig, Department, Designation]),
+    TenantContextModule,
+  ],
+  providers: [
+    TenantService,
+    TenantDatabaseConfigService,
+    TenantProvisioningService,
   ],
   controllers: [TenantServiceController],
-  providers: [TenantServiceService],
-  exports: [TenantServiceService],
+  exports: [
+    TenantService,
+    TenantDatabaseConfigService,
+    TenantProvisioningService,
+  ],
 })
 export class TenantServiceModule {}

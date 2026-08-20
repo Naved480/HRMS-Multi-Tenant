@@ -8,30 +8,30 @@ import {
   Default,
   CreatedAt,
   UpdatedAt,
+  BelongsToMany,
 } from 'sequelize-typescript';
+import { Role } from './role.model';
+import { RolePermission } from './role-permission.model';
 
-@Table({ tableName: 'permissions' })
+@Table({ tableName: 'permissions', timestamps: true })
 export class Permission extends Model {
   @IsUUID(4)
   @PrimaryKey
   @Default(DataType.UUIDV4)
-  @Column
+  @Column(DataType.UUID)
   declare id: string;
 
-  @Column({ allowNull: false })
-  declare tenantId: string;
+  @Column({ type: DataType.STRING, allowNull: false })
+  declare resource: string;
 
-  @Column({ allowNull: false })
-  declare name: string;
-
-  @Column({ allowNull: false })
-  declare module: string;
-
-  @Column({ allowNull: false })
+  @Column({ type: DataType.STRING, allowNull: false })
   declare action: string;
 
-  @Column
+  @Column({ type: DataType.STRING, allowNull: true })
   declare description: string;
+
+  @BelongsToMany(() => Role, () => RolePermission)
+  declare roles: Role[];
 
   @CreatedAt
   declare createdAt: Date;
