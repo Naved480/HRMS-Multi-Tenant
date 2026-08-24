@@ -1,10 +1,14 @@
-import { Injectable, NestMiddleware, BadRequestException } from '@nestjs/common';
+import { Injectable, NestMiddleware } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
-import { tenantStorage } from '../context/tenant-context.service';
+import * as crypto from 'crypto';
+import { tenantStorage, TenantContext } from '../context/tenant-context.service';
 import { TenantRequestContextService } from '../context/tenant-request-context.service';
+import { TenantException, TenantErrorCode } from '@app/common';
 
 export interface TenantRequest extends Request {
   tenantId?: string;
+  requestId?: string;
+  user?: any;
 }
 
 @Injectable()
@@ -12,16 +16,34 @@ export class TenantResolverMiddleware implements NestMiddleware {
   constructor(private readonly tenantRequestContext: TenantRequestContextService) {}
 
   use(req: TenantRequest, res: Response, next: NextFunction): void {
-    const rawHeader = req.headers['x-tenant-id'];
-    let tenantId: string | undefined;
+    // 1. Request ID Correlation (Phase L)
+    const rawReqId = req.headers['x-request-id'];
+    const requestId =
+      (Array.isArray(rawReqId) ? rawReqId[0] : rawReqId) || crypto.randomUUID();
+    req.requestId = requestId;
+    res.setHeader('x-request-id', requestId);
 
-    if (Array.isArray(rawHeader)) {
-      tenantId = rawHeader[0];
-    } else if (typeof rawHeader === 'string') {
-      tenantId = rawHeader;
+    // 2. Tenant Resolution Priority (Phase F)
+    // Priority 1: JWT tenantId (Primary source of truth for authenticated requests)
+    let tenantId: string | undefined = req.user?.tenantId;
+
+    const rawHeader = req.headers['x-tenant-id'];
+    const headerTenantId = Array.isArray(rawHeader) ? rawHeader[0] : rawHeader;
+
+    // Security Check: If user has JWT tenantId, prevent accessing a different tenant via header
+    if (req.user?.tenantId && headerTenantId && headerTenantId !== req.user.tenantId) {
+      throw new TenantException(
+        TenantErrorCode.TENANT_ACCESS_DENIED,
+        'Access denied: JWT tenant context does not match requested tenant header.',
+      );
     }
 
-    // Fallback: subdomain extraction (e.g. acme.hrms.local)
+    // Priority 2: Explicit x-tenant-id header (for unauthenticated / system onboarding calls)
+    if (!tenantId && headerTenantId) {
+      tenantId = headerTenantId;
+    }
+
+    // Priority 3: Subdomain extraction fallback (e.g. acme.hrms.local)
     if (!tenantId && req.headers.host) {
       const host = req.headers.host;
       const parts = host.split('.');
@@ -29,6 +51,16 @@ export class TenantResolverMiddleware implements NestMiddleware {
         tenantId = parts[0];
       }
     }
+
+    const userId = req.user?.id || req.user?.sub;
+    const roles = req.user?.roles || (req.user?.role ? [req.user.role] : []);
+
+    const contextPayload: TenantContext = {
+      tenantId,
+      requestId,
+      userId,
+      roles,
+    };
 
     if (tenantId) {
       req.tenantId = tenantId;
@@ -44,10 +76,11 @@ export class TenantResolverMiddleware implements NestMiddleware {
         password: process.env.TENANT_DB_PASSWORD || 'password',
         dialect: 'postgres',
       });
-
-      tenantStorage.enterWith({ tenantId });
     }
 
-    next();
+    // Wrap execution inside AsyncLocalStorage.run() boundary (Phase E)
+    tenantStorage.run(contextPayload, () => {
+      next();
+    });
   }
 }

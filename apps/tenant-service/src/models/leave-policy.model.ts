@@ -11,8 +11,8 @@ import {
 } from 'sequelize-typescript';
 import { Tenant } from './tenant.model';
 
-@Table({ tableName: 'departments', timestamps: true })
-export class Department extends Model {
+@Table({ tableName: 'leave_policies', timestamps: true })
+export class LeavePolicy extends Model {
   @IsUUID(4)
   @PrimaryKey
   @Default(DataType.UUIDV4)
@@ -26,11 +26,15 @@ export class Department extends Model {
   @Column({ allowNull: false })
   declare name: string;
 
-  @Column({ allowNull: true })
-  declare code: string;
-
   @Column({ type: DataType.TEXT, allowNull: true })
   declare description: string;
+
+  @Column({ type: DataType.INTEGER, allowNull: false, defaultValue: 14 })
+  declare annualAllocation: number;
+
+  @Default(true)
+  @Column({ type: DataType.BOOLEAN, defaultValue: true })
+  declare isPaid: boolean;
 
   @Default(true)
   @Column({ type: DataType.BOOLEAN, defaultValue: true })

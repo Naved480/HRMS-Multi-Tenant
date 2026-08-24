@@ -4,6 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { TenantModelProviderService } from './tenant-model-provider.service';
+import { TenantContextService } from '@app/tenant-context';
 import { User, Role } from '../models';
 
 export interface CreateUserData {
@@ -28,7 +29,66 @@ export interface UpdateUserData {
 export class UserService {
   constructor(
     private readonly modelProvider: TenantModelProviderService,
+    private readonly tenantContextService: TenantContextService,
   ) {}
+
+  /**
+   * Create an Organization Admin User & assign ORGANIZATION_ADMIN role in tenant DB (Idempotent)
+   */
+  async createOrganizationAdminUser(data: {
+    tenantId: string;
+    email: string;
+    firstName?: string;
+    lastName?: string;
+  }): Promise<User> {
+    return this.tenantContextService.run({ tenantId: data.tenantId }, async () => {
+      const UserModel = await this.modelProvider.getUserModel();
+      const RoleModel = await this.modelProvider.getRoleModel();
+      const UserRoleModel = await this.modelProvider.getUserRoleModel();
+
+      let user = await UserModel.findOne({ where: { email: data.email } });
+      if (!user) {
+        user = await UserModel.create({
+          email: data.email,
+          firstName: data.firstName || 'Admin',
+          lastName: data.lastName || '',
+          isActive: true,
+        });
+      } else {
+        await user.update({
+          firstName: data.firstName || user.firstName,
+          lastName: data.lastName || user.lastName,
+          isActive: true,
+        });
+      }
+
+      // Ensure ORGANIZATION_ADMIN role exists in tenant DB
+      let adminRole = await RoleModel.findOne({ where: { name: 'ORGANIZATION_ADMIN' } });
+      if (!adminRole) {
+        adminRole = await RoleModel.findOne({ where: { name: 'Admin' } });
+      }
+      if (!adminRole) {
+        adminRole = await RoleModel.create({
+          name: 'ORGANIZATION_ADMIN',
+          description: 'Organization Administrator with full tenant access',
+          isSystemRole: true,
+        });
+      }
+
+      // Idempotent Role assignment
+      const existingUserRole = await UserRoleModel.findOne({
+        where: { userId: user.id, roleId: adminRole.id },
+      });
+      if (!existingUserRole) {
+        await UserRoleModel.create({
+          userId: user.id,
+          roleId: adminRole.id,
+        });
+      }
+
+      return user;
+    });
+  }
 
   /**
    * Create a user in the current tenant database

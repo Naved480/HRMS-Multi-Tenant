@@ -16,6 +16,18 @@ import { AuthService } from '../services/auth.service';
 export class AuthMicroserviceController {
   constructor(private readonly authService: AuthService) {}
 
+  @MessagePattern(MESSAGE_PATTERNS.HEALTH.CHECK)
+  healthCheck() {
+    return { service: 'auth-service', status: 'up', timestamp: new Date().toISOString() };
+  }
+
+  @MessagePattern(MESSAGE_PATTERNS.AUTH.CREATE_ADMIN_CREDENTIAL)
+  createAdminCredential(
+    @Payload() data: { email: string; password: string; tenantId: string; tenantName?: string; role?: string },
+  ) {
+    return this.authService.createAdminCredential(data);
+  }
+
   @MessagePattern(MESSAGE_PATTERNS.AUTH.SUPERADMIN_LOGIN)
   superAdminLogin(@Payload() dto: SuperAdminLoginDto) {
     return this.authService.superAdminLogin(dto);

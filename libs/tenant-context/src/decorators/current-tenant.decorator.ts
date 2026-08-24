@@ -1,8 +1,19 @@
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
+import { tenantStorage, TenantContext } from '../context/tenant-context.service';
 
 export const CurrentTenant = createParamDecorator(
-  (data: unknown, ctx: ExecutionContext) => {
+  (data: keyof TenantContext | undefined, ctx: ExecutionContext) => {
     const request = ctx.switchToHttp().getRequest();
-    return request.tenantId;
+    const contextStore = tenantStorage.getStore() || {
+      tenantId: request.tenantId || request.user?.tenantId,
+      userId: request.user?.id || request.user?.sub,
+      requestId: request.requestId,
+    };
+
+    if (data) {
+      return contextStore[data];
+    }
+
+    return contextStore;
   },
 );

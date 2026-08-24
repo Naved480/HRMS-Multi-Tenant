@@ -1,13 +1,19 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleDestroy, Logger } from '@nestjs/common';
 import { Sequelize } from 'sequelize-typescript';
 import { TenantConnectionOptions } from '@app/database';
 
 @Injectable()
-export class TenantConnectionManager {
+export class TenantConnectionManager implements OnModuleDestroy {
+  private readonly logger = new Logger(TenantConnectionManager.name);
   private tenantConnections: Map<string, Sequelize> = new Map();
+  private pendingConnections: Map<string, Promise<Sequelize>> = new Map();
+
+  async onModuleDestroy() {
+    await this.closeAllConnections();
+  }
 
   /**
-   * Create or retrieve connection for a tenant
+   * Create or retrieve dynamic connection pool for a tenant safely
    */
   async getConnection(options: TenantConnectionOptions): Promise<Sequelize> {
     const key = options.tenantId;
@@ -16,25 +22,40 @@ export class TenantConnectionManager {
       return this.tenantConnections.get(key)!;
     }
 
-    const connection = new Sequelize({
-      host: options.host,
-      port: options.port,
-      username: options.username,
-      password: options.password,
-      database: options.databaseName,
-      dialect: options.dialect,
-      logging: process.env.NODE_ENV === 'development' ? console.log : false,
-      pool: {
-        max: 5,
-        min: 1,
-        idle: 10000,
-      },
-    });
+    // Prevent race conditions / duplicate connections
+    if (this.pendingConnections.has(key)) {
+      return this.pendingConnections.get(key)!;
+    }
 
-    await connection.authenticate();
-    this.tenantConnections.set(key, connection);
+    const connectionPromise = (async () => {
+      try {
+        const connection = new Sequelize({
+          host: options.host,
+          port: options.port,
+          username: options.username,
+          password: options.password,
+          database: options.databaseName,
+          dialect: options.dialect || 'postgres',
+          logging: process.env.NODE_ENV === 'development' ? (msg) => this.logger.debug(msg) : false,
+          pool: {
+            max: 5,
+            min: 1,
+            idle: 10000,
+            acquire: 30000,
+          },
+        });
 
-    return connection;
+        await connection.authenticate();
+        this.tenantConnections.set(key, connection);
+        this.logger.log(`Initialized database connection pool for tenant: ${key} (${options.databaseName})`);
+        return connection;
+      } finally {
+        this.pendingConnections.delete(key);
+      }
+    })();
+
+    this.pendingConnections.set(key, connectionPromise);
+    return connectionPromise;
   }
 
   /**
@@ -45,21 +66,27 @@ export class TenantConnectionManager {
     if (connection) {
       await connection.close();
       this.tenantConnections.delete(tenantId);
+      this.logger.log(`Closed database connection for tenant: ${tenantId}`);
     }
   }
 
   /**
-   * Close all tenant connections
+   * Close all active tenant connections gracefully
    */
   async closeAllConnections(): Promise<void> {
     for (const [tenantId, connection] of this.tenantConnections.entries()) {
-      await connection.close();
-      this.tenantConnections.delete(tenantId);
+      try {
+        await connection.close();
+      } catch (err: any) {
+        this.logger.error(`Error closing connection for tenant ${tenantId}: ${err.message}`);
+      }
     }
+    this.tenantConnections.clear();
+    this.pendingConnections.clear();
   }
 
   /**
-   * Get all active tenant connections
+   * Get active tenant connection map
    */
   getActiveConnections(): Map<string, Sequelize> {
     return this.tenantConnections;

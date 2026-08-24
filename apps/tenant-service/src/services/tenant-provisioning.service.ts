@@ -1,11 +1,26 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Sequelize } from 'sequelize';
 import { TenantService } from './tenant.service';
 import { TenantDatabaseConfigService } from './tenant-database-config.service';
 import { TenantConnectionManager } from '@app/tenant-context';
+import { TenantProvisioningStatus, TenantStatus, TenantSetupStatus } from '../models/tenant.model';
+import { TenantException, TenantErrorCode } from '@app/common';
+
+export interface OrganizationCreationResult {
+  tenantId: string;
+  organizationName: string;
+  slug: string;
+  databaseName: string;
+  status: TenantStatus;
+  provisioningStatus: TenantProvisioningStatus;
+  setupStatus: TenantSetupStatus;
+  message: string;
+}
 
 @Injectable()
 export class TenantProvisioningService {
+  private readonly logger = new Logger(TenantProvisioningService.name);
+
   constructor(
     private tenantService: TenantService,
     private tenantDbConfigService: TenantDatabaseConfigService,
@@ -13,38 +28,100 @@ export class TenantProvisioningService {
   ) {}
 
   /**
-   * Provision a new tenant with dedicated database and schema setup
+   * Safe generator for PostgreSQL database names (Phase E)
+   * Pattern: hrms_<sanitized_tenant_identifier>
    */
-  async provisionNewTenant(
-    tenantName: string,
-    organizationName: string,
-    email: string,
-    planType: string,
-  ): Promise<{
-    tenantId: string;
-    databaseName: string;
-    message: string;
-  }> {
-    // Step 1: Create tenant record in platform DB
+  public generateDatabaseName(tenantId: string): string {
+    const safeIdentifier = tenantId.replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase();
+    return `hrms_${safeIdentifier}`;
+  }
+
+  /**
+   * Safe generator for unique Organization Slugs (Phase D)
+   */
+  public generateSlug(organizationName: string, domain?: string): string {
+    const base = domain || organizationName;
+    return base
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+  }
+
+  /**
+   * Full Organization Creation & Tenant DB Provisioning (Phases C, D, E, F, G, H, I)
+   */
+  async createOrganizationAndProvision(data: {
+    organizationName: string;
+    adminEmail: string;
+    adminName?: string;
+    domain?: string;
+    teamStrength?: string;
+  }): Promise<OrganizationCreationResult> {
+    const slug = this.generateSlug(data.organizationName, data.domain);
+
+    // Check duplicate organization slug
+    const existing = await this.tenantService.getTenantByDomainOrSlug(slug);
+    if (existing) {
+      throw new TenantException(
+        TenantErrorCode.INVALID_TENANT_CONTEXT,
+        `Organization with slug or domain '${slug}' already exists.`,
+      );
+    }
+
+    // Step 1: Create Tenant Record in DRAFT status
     const tenant = await this.tenantService.createTenant({
-      name: tenantName,
-      organizationName,
-      email,
-      planType,
+      name: data.organizationName,
+      organizationName: data.organizationName,
+      slug,
+      domain: slug,
+      email: data.adminEmail,
+      adminEmail: data.adminEmail,
+      status: TenantStatus.DRAFT,
+      setupStatus: TenantSetupStatus.NOT_STARTED,
+      provisioningStatus: TenantProvisioningStatus.PENDING,
       isActive: true,
     });
 
-    const databaseName = `hrms_${tenant.id.replace(/-/g, '_')}`;
+    const databaseName = this.generateDatabaseName(tenant.id);
+
+    // Step 2: Trigger Idempotent DB Provisioning Flow
+    return this.provisionTenantDatabase(tenant.id, databaseName, data.organizationName, slug);
+  }
+
+  /**
+   * Idempotent Database Provisioning Core (Phase F, G, H, I, J)
+   */
+  async provisionTenantDatabase(
+    tenantId: string,
+    customDbName?: string,
+    organizationName?: string,
+    slug?: string,
+  ): Promise<OrganizationCreationResult> {
+    const tenant = await this.tenantService.getTenantById(tenantId);
+    const databaseName = customDbName || this.generateDatabaseName(tenant.id);
+
+    // Update status to PROVISIONING
+    await tenant.update({
+      provisioningStatus: TenantProvisioningStatus.PROVISIONING,
+      provisioningError: null,
+    });
 
     try {
-      // Step 2: Create database for this tenant
-      await this.createTenantDatabase(databaseName);
+      // Step A: Check if database exists idempotently
+      const dbExists = await this.checkDatabaseExists(databaseName);
+      if (!dbExists) {
+        await this.createTenantDatabase(databaseName);
+      } else {
+        this.logger.log(`Database '${databaseName}' already exists. Skipping SQL CREATE DATABASE.`);
+      }
 
-      // Step 3: Run migrations / model synchronization for tenant DB
-      await this.runMigrationsForTenant(databaseName);
+      // Step B: Initialize Base Schema & Migrations idempotently (Phase I)
+      await this.runMigrationsAndBaseSchema(databaseName);
 
-      // Step 4: Store database configuration in platform DB
-      await this.tenantDbConfigService.createTenantDatabaseConfig(
+      // Step C: Save / Update TenantDatabaseConfig (Phase H)
+      await this.tenantDbConfigService.saveOrUpdateTenantDatabaseConfig(
         tenant.id,
         databaseName,
         process.env.TENANT_DB_HOST || 'localhost',
@@ -53,45 +130,95 @@ export class TenantProvisioningService {
         process.env.TENANT_DB_PASSWORD || 'password',
       );
 
+      // Step D: Mark Provisioning as READY & set status to PENDING_ADMIN_ACTIVATION
+      await tenant.update({
+        provisioningStatus: TenantProvisioningStatus.READY,
+        status: TenantStatus.PENDING_ADMIN_ACTIVATION,
+        setupStatus: TenantSetupStatus.NOT_STARTED,
+      });
+
+      this.logger.log(
+        `Tenant ${tenant.id} (${databaseName}) database provisioned successfully. Status: PENDING_ADMIN_ACTIVATION.`,
+      );
+
       return {
         tenantId: tenant.id,
+        organizationName: tenant.organizationName || tenant.name,
+        slug: tenant.slug || slug || tenant.domain,
         databaseName,
-        message: `Tenant provisioned successfully. Database ${databaseName} created and initialized.`,
+        status: TenantStatus.PENDING_ADMIN_ACTIVATION,
+        provisioningStatus: TenantProvisioningStatus.READY,
+        setupStatus: TenantSetupStatus.NOT_STARTED,
+        message: `Organization database '${databaseName}' provisioned and initialized successfully. Pending Admin Activation.`,
       };
     } catch (error: any) {
-      // Rollback: Drop DB if created, and delete tenant record
-      try {
-        await this.dropTenantDatabase(databaseName);
-      } catch {
-        // Ignore DB drop error during rollback if it wasn't created
-      }
+      const safeErrorMessage = error.message || 'Unknown database provisioning error';
+      this.logger.error(`Provisioning failed for tenant ${tenant.id}: ${safeErrorMessage}`);
 
-      await this.tenantService.deleteTenant(tenant.id);
-      throw new BadRequestException(
-        `Failed to provision tenant: ${error.message}`,
+      // Failure Handling (Phase J): Mark FAILED and store safe error metadata
+      await tenant.update({
+        provisioningStatus: TenantProvisioningStatus.FAILED,
+        provisioningError: safeErrorMessage,
+      });
+
+      throw new TenantException(
+        TenantErrorCode.INVALID_TENANT_CONTEXT,
+        `Organization database provisioning failed: ${safeErrorMessage}`,
       );
     }
   }
 
   /**
-   * Create a new database for tenant
+   * Controlled Retry Provisioning Mechanism (Phase K)
+   */
+  async retryProvisioning(tenantId: string): Promise<OrganizationCreationResult> {
+    const tenant = await this.tenantService.getTenantById(tenantId);
+
+    if (tenant.provisioningStatus === TenantProvisioningStatus.READY) {
+      return {
+        tenantId: tenant.id,
+        organizationName: tenant.organizationName || tenant.name,
+        slug: tenant.slug || tenant.domain,
+        databaseName: this.generateDatabaseName(tenant.id),
+        status: tenant.status,
+        provisioningStatus: TenantProvisioningStatus.READY,
+        setupStatus: tenant.setupStatus,
+        message: 'Tenant database is already provisioned and in READY status.',
+      };
+    }
+
+    this.logger.log(`Retrying database provisioning for tenant ${tenantId}...`);
+    return this.provisionTenantDatabase(tenant.id);
+  }
+
+  /**
+   * Check if PostgreSQL database exists idempotently
+   */
+  private async checkDatabaseExists(databaseName: string): Promise<boolean> {
+    const sequelize = this.getPlatformMasterSequelize();
+    try {
+      const [results]: any = await sequelize.query(
+        `SELECT 1 FROM pg_database WHERE datname = '${databaseName}';`,
+      );
+      return results && results.length > 0;
+    } catch {
+      return false;
+    } finally {
+      await sequelize.close();
+    }
+  }
+
+  /**
+   * Create PostgreSQL database safely
    */
   private async createTenantDatabase(databaseName: string): Promise<void> {
-    const sequelize = new Sequelize({
-      host: process.env.TENANT_DB_HOST || 'localhost',
-      port: parseInt(process.env.TENANT_DB_PORT || '5432'),
-      username: process.env.TENANT_DB_USER || 'postgres',
-      password: process.env.TENANT_DB_PASSWORD || 'password',
-      dialect: 'postgres',
-      logging: false,
-    });
-
+    const sequelize = this.getPlatformMasterSequelize();
     try {
       await sequelize.query(`CREATE DATABASE "${databaseName}";`);
-      console.log(`Database ${databaseName} created successfully`);
+      this.logger.log(`Database "${databaseName}" created successfully.`);
     } catch (error: any) {
       if (error.message && error.message.includes('already exists')) {
-        throw new BadRequestException(`Database ${databaseName} already exists`);
+        return;
       }
       throw error;
     } finally {
@@ -100,9 +227,9 @@ export class TenantProvisioningService {
   }
 
   /**
-   * Run migrations / table synchronization for a newly created tenant database
+   * Run Base Tenant Schema Initialization & Migrations (Phase I)
    */
-  private async runMigrationsForTenant(databaseName: string): Promise<void> {
+  private async runMigrationsAndBaseSchema(databaseName: string): Promise<void> {
     const sequelize = new Sequelize({
       host: process.env.TENANT_DB_HOST || 'localhost',
       port: parseInt(process.env.TENANT_DB_PORT || '5432'),
@@ -115,11 +242,26 @@ export class TenantProvisioningService {
 
     try {
       await sequelize.authenticate();
-      // Synchronize initial schemas/tables for tenant database
+      // Initialize base schema tracking table
+      await sequelize.query(`
+        CREATE TABLE IF NOT EXISTS tenant_schema_migrations (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          version VARCHAR(50) NOT NULL UNIQUE,
+          executed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+
+      // Record base migration version 1.0.0
+      await sequelize.query(`
+        INSERT INTO tenant_schema_migrations (version)
+        VALUES ('1.0.0')
+        ON CONFLICT (version) DO NOTHING;
+      `);
+
+      // Sync base tables idempotently
       await sequelize.sync({ force: false });
-      console.log(`Migrations/sync executed successfully for ${databaseName}`);
     } catch (error: any) {
-      console.error(`Migration failed for ${databaseName}:`, error.message);
+      this.logger.error(`Base schema initialization failed for database ${databaseName}: ${error.message}`);
       throw error;
     } finally {
       await sequelize.close();
@@ -127,39 +269,41 @@ export class TenantProvisioningService {
   }
 
   /**
-   * Deprovision a tenant (close active connections, drop database, remove configs & record)
+   * Deprovision tenant safely
    */
   async deprovisionTenant(tenantId: string): Promise<void> {
-    const dbConfig = await this.tenantDbConfigService.getTenantDatabaseConfig(
-      tenantId,
-    );
-
+    const dbConfig = await this.tenantDbConfigService.getTenantDatabaseConfig(tenantId);
     try {
-      // Step 1: Close cached connections in manager
       await this.tenantConnectionManager.closeConnection(tenantId);
-
-      // Step 2: Drop database
       await this.dropTenantDatabase(dbConfig.databaseName);
-
-      // Step 3: Delete configuration
       await this.tenantDbConfigService.deleteTenantDatabaseConfig(tenantId);
-
-      // Step 4: Delete tenant record
       await this.tenantService.deleteTenant(tenantId);
-
-      console.log(`Tenant ${tenantId} deprovisioned successfully`);
+      this.logger.log(`Tenant ${tenantId} deprovisioned cleanly.`);
     } catch (error: any) {
-      throw new BadRequestException(
+      throw new TenantException(
+        TenantErrorCode.INVALID_TENANT_CONTEXT,
         `Failed to deprovision tenant: ${error.message}`,
       );
     }
   }
 
-  /**
-   * Drop a tenant's database
-   */
   private async dropTenantDatabase(databaseName: string): Promise<void> {
-    const sequelize = new Sequelize({
+    const sequelize = this.getPlatformMasterSequelize();
+    try {
+      await sequelize.query(`
+        SELECT pg_terminate_backend(pg_stat_activity.pid)
+        FROM pg_stat_activity
+        WHERE pg_stat_activity.datname = '${databaseName}'
+        AND pid <> pg_backend_pid();
+      `);
+      await sequelize.query(`DROP DATABASE IF EXISTS "${databaseName}";`);
+    } finally {
+      await sequelize.close();
+    }
+  }
+
+  private getPlatformMasterSequelize(): Sequelize {
+    return new Sequelize({
       host: process.env.TENANT_DB_HOST || 'localhost',
       port: parseInt(process.env.TENANT_DB_PORT || '5432'),
       username: process.env.TENANT_DB_USER || 'postgres',
@@ -167,23 +311,5 @@ export class TenantProvisioningService {
       dialect: 'postgres',
       logging: false,
     });
-
-    try {
-      // Terminate all connections to the database
-      await sequelize.query(`
-        SELECT pg_terminate_backend(pg_stat_activity.pid)
-        FROM pg_stat_activity
-        WHERE pg_stat_activity.datname = '${databaseName}'
-        AND pid <> pg_backend_pid();
-      `);
-
-      // Drop database
-      await sequelize.query(`DROP DATABASE IF EXISTS "${databaseName}";`);
-      console.log(`Database ${databaseName} dropped successfully`);
-    } catch (error) {
-      throw error;
-    } finally {
-      await sequelize.close();
-    }
   }
 }

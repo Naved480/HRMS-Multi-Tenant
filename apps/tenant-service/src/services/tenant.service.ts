@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { Tenant } from '../models/tenant.model';
+import { Op } from 'sequelize';
+import { Tenant, TenantStatus, TenantSetupStatus, TenantProvisioningStatus } from '../models/tenant.model';
 
 @Injectable()
 export class TenantService {
@@ -10,16 +11,34 @@ export class TenantService {
   ) {}
 
   /**
-   * Create a new tenant
+   * Create a new tenant record
    */
   async createTenant(data: {
     name: string;
-    organizationName: string;
-    email: string;
-    planType: string;
+    organizationName?: string;
+    slug?: string;
+    domain?: string;
+    email?: string;
+    adminEmail?: string;
+    planType?: string;
+    status?: TenantStatus;
+    setupStatus?: TenantSetupStatus;
+    provisioningStatus?: TenantProvisioningStatus;
     isActive?: boolean;
   }): Promise<Tenant> {
-    return this.tenantModel.create(data);
+    return this.tenantModel.create({
+      name: data.name,
+      organizationName: data.organizationName || data.name,
+      slug: data.slug || data.domain,
+      domain: data.domain || data.slug,
+      email: data.email || data.adminEmail,
+      adminEmail: data.adminEmail || data.email,
+      planType: data.planType || 'standard',
+      status: data.status || TenantStatus.DRAFT,
+      setupStatus: data.setupStatus || TenantSetupStatus.NOT_STARTED,
+      provisioningStatus: data.provisioningStatus || TenantProvisioningStatus.PENDING,
+      isActive: data.isActive ?? true,
+    });
   }
 
   /**
@@ -27,12 +46,24 @@ export class TenantService {
    */
   async getTenantById(tenantId: string): Promise<Tenant> {
     const tenant = await this.tenantModel.findByPk(tenantId);
-
     if (!tenant) {
       throw new NotFoundException(`Tenant ${tenantId} not found`);
     }
-
     return tenant;
+  }
+
+  /**
+   * Find tenant by domain or slug
+   */
+  async getTenantByDomainOrSlug(slugOrDomain: string): Promise<Tenant | null> {
+    return this.tenantModel.findOne({
+      where: {
+        [Op.or]: [
+          { slug: slugOrDomain },
+          { domain: slugOrDomain },
+        ],
+      },
+    });
   }
 
   /**

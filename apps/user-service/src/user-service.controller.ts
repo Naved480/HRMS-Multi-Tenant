@@ -8,6 +8,8 @@ import {
   Param,
   UseGuards,
 } from '@nestjs/common';
+import { MessagePattern, Payload } from '@nestjs/microservices';
+import { MESSAGE_PATTERNS, Public } from '@app/common';
 import {
   TenantGuard,
   RolesGuard,
@@ -25,6 +27,20 @@ export class UserServiceController {
     private readonly userService: UserService,
     private readonly roleService: RoleService,
   ) {}
+
+  @MessagePattern(MESSAGE_PATTERNS.HEALTH.CHECK)
+  @Public()
+  healthCheck() {
+    return { service: 'user-service', status: 'up', timestamp: new Date().toISOString() };
+  }
+
+  @MessagePattern(MESSAGE_PATTERNS.USER.CREATE_ORGANIZATION_ADMIN)
+  @Public()
+  async createOrganizationAdminMessage(
+    @Payload() data: { tenantId: string; email: string; firstName?: string; lastName?: string },
+  ) {
+    return this.userService.createOrganizationAdminUser(data);
+  }
 
   // ==========================================
   // USERS ENDPOINTS

@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { TenantDatabaseConfig } from '../models/tenant-database-config.model';
+import { TenantDatabaseConfig, TenantDbStatus } from '../models/tenant-database-config.model';
 import { TenantConnectionOptions } from '@app/database';
 
 @Injectable()
@@ -11,9 +11,9 @@ export class TenantDatabaseConfigService {
   ) {}
 
   /**
-   * Create database configuration for a new tenant
+   * Create or update database configuration for a tenant idempotently
    */
-  async createTenantDatabaseConfig(
+  async saveOrUpdateTenantDatabaseConfig(
     tenantId: string,
     databaseName: string,
     host: string,
@@ -26,9 +26,15 @@ export class TenantDatabaseConfigService {
     });
 
     if (existingConfig) {
-      throw new BadRequestException(
-        `Tenant ${tenantId} already has database configuration`,
-      );
+      return existingConfig.update({
+        databaseName,
+        host,
+        port,
+        username,
+        password,
+        status: TenantDbStatus.ACTIVE,
+        isActive: true,
+      });
     }
 
     return this.tenantDbConfigModel.create({
@@ -39,6 +45,7 @@ export class TenantDatabaseConfigService {
       username,
       password,
       dialect: 'postgres',
+      status: TenantDbStatus.ACTIVE,
       isActive: true,
       poolConfig: {
         max: 5,
@@ -46,6 +53,27 @@ export class TenantDatabaseConfigService {
         idle: 10000,
       },
     });
+  }
+
+  /**
+   * Create database configuration for a new tenant
+   */
+  async createTenantDatabaseConfig(
+    tenantId: string,
+    databaseName: string,
+    host: string,
+    port: number,
+    username: string,
+    password: string,
+  ): Promise<TenantDatabaseConfig> {
+    return this.saveOrUpdateTenantDatabaseConfig(
+      tenantId,
+      databaseName,
+      host,
+      port,
+      username,
+      password,
+    );
   }
 
   /**

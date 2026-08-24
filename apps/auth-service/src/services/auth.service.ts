@@ -38,6 +38,42 @@ export class AuthService implements OnModuleInit {
     }
   }
 
+  /**
+   * Create or update AuthCredential for Organization Admin activation
+   */
+  async createAdminCredential(data: {
+    email: string;
+    password: string;
+    tenantId: string;
+    tenantName?: string;
+    role?: string;
+  }) {
+    const passwordHash = await bcrypt.hash(data.password, 10);
+    const existing = await this.credentialModel.findOne({ where: { email: data.email } });
+
+    if (existing) {
+      await existing.update({
+        passwordHash,
+        tenantId: data.tenantId,
+        tenantName: data.tenantName || existing.tenantName,
+        role: data.role || 'Admin',
+        isActive: true,
+      });
+      return { message: 'Admin credential updated successfully', credentialId: existing.id };
+    }
+
+    const credential = await this.credentialModel.create({
+      email: data.email,
+      passwordHash,
+      tenantId: data.tenantId,
+      tenantName: data.tenantName || 'Organization',
+      role: data.role || 'Admin',
+      isActive: true,
+    });
+
+    return { message: 'Admin credential created successfully', credentialId: credential.id };
+  }
+
   async superAdminLogin(dto: SuperAdminLoginDto) {
     const admin = await this.superAdminModel.findOne({ where: { email: dto.email } });
     if (!admin || !(await bcrypt.compare(dto.password, admin.passwordHash))) {

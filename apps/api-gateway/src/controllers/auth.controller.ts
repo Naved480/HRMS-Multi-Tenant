@@ -1,10 +1,11 @@
 import { Controller, Post, Body, Inject } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { ClientProxy } from '@nestjs/microservices';
-import { SERVICES, MESSAGE_PATTERNS, RegisterTenantDto, LoginDto } from '@app/common';
+import { SERVICES, MESSAGE_PATTERNS, RegisterTenantDto, LoginDto, Public } from '@app/common';
 
 @ApiTags('Auth Gateway')
 @Controller('auth')
+@Public()
 export class ApiGatewayAuthController {
   constructor(
     @Inject(SERVICES.AUTH_SERVICE) private readonly authClient: ClientProxy,

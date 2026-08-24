@@ -1,14 +1,22 @@
 # End-to-End Organization (Tenant) Lifecycle & Execution Flow
 
-> **Document Version**: 1.0.0  
+> **Document Version**: 1.2.0  
 > **Platform**: HRMS Multi-Tenant Microservices System  
 > **Target Audience**: Software Engineers, System Architects, & DevOps Engineers  
 
 ---
 
-## 1. Overview
+## 1. Core Architectural Principles
 
-This document details the complete end-to-end **Organization (Tenant) Lifecycle Flow** within the HRMS Multi-Tenant Platform. It covers every stage from organization onboarding and automated database provisioning to request context resolution, RBAC permission checks, dynamic connection pooling, and organization deprovisioning.
+> 🔑 **Single Organization Database Rule**:
+> `TenantConnectionManager` resolves **one isolated database per tenant organization** (e.g., `hrms_<tenant_id>`). 
+> Domain microservices (`user-service`, `tenant-service`, `attendance-service`, `payroll-service`, etc.) access the current organization's database using the validated `TenantContext`.
+> 
+> **Important**: This architecture does **NOT** create a separate physical database for every microservice per tenant. A single tenant database contains all domain tables for that organization, bound dynamically via `TenantModelProviderService`.
+
+> 🔑 **Tenant Active Lifecycle Rule**:
+> Successful database provisioning sets `provisioningStatus = READY`, `status = PENDING_ADMIN_ACTIVATION`, and `setupStatus = NOT_STARTED`.
+> Successful database creation does **NOT** automatically mark a tenant as `ACTIVE`. A tenant transitions to `ACTIVE` only after the Organization Admin accepts their invitation, sets a password, and completes the organization setup flow.
 
 ---
 
@@ -18,12 +26,17 @@ This document details the complete end-to-end **Organization (Tenant) Lifecycle 
 ┌──────────────────────────────────────────────────────────────────────────────────┐
 │                               1. ONBOARDING PHASE                                │
 │                                                                                  │
-│   Client/User ──────► API Gateway ──────► Auth Microservice ───► Tenant Service │
-│                           (Port 3000)        (Port 3001)           (Port 3002)   │
+│   SuperAdmin/User ───► API Gateway ────► Tenant Service ────► DB Provisioning    │
+│                           (Port 3000)          (Port 3002)           (PostgreSQL) │
 │                                                                      │           │
 │                                                                      ▼           │
 │                                                          CREATE DATABASE         │
 │                                                          hrms_<tenant_id>        │
+│                                                                      │           │
+│                                                                      ▼           │
+│                                                      provisioningStatus: READY   │
+│                                                      status: PENDING_ADMIN_...   │
+│                                                      setupStatus: NOT_STARTED    │
 └──────────────────────────────────────────────────────────────────────┬───────────┘
                                                                        │
 ┌──────────────────────────────────────────────────────────────────────▼───────────┐
@@ -45,51 +58,45 @@ This document details the complete end-to-end **Organization (Tenant) Lifecycle 
 
 ---
 
-### Phase 1: Organization Onboarding & Database Provisioning
+### Phase 1: Organization Creation & Database Provisioning
 
-The onboarding flow can be triggered either via **Public Self-Service Sign-up** (`POST /api/v1/auth/register-tenant`) or **SuperAdmin Admin Portal** (`POST /api/v1/superadmin/organizations/onboard`).
+The organization creation flow is initiated by SuperAdmin (`POST /api/v1/superadmin/organizations`).
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Client as Customer / Admin
+    actor Client as SuperAdmin
     participant Gateway as API Gateway (3000)
-    participant Auth as Auth Service (3001)
     participant TenantSvc as Tenant Service (3002)
     participant Manager as TenantConnectionManager
     participant DB as PostgreSQL Server
 
-    Client->>Gateway: POST /api/v1/auth/register-tenant { companyName, domain, adminEmail, password }
-    Gateway->>Auth: TCP Message (AUTH.REGISTER_TENANT)
-    Auth->>Auth: Validate email uniqueness & hash password (bcrypt)
-    Auth->>Auth: Create AuthCredential & Platform Tenant record
-    Auth->>TenantSvc: TCP Message (TENANT.PROVISION)
-    TenantSvc->>DB: CREATE DATABASE "hrms_<tenant_id>";
-    TenantSvc->>DB: Connect to new database & run model sync (sequelize.sync())
-    TenantSvc->>DB: Save DB credentials into tenant_database_configs
-    TenantSvc-->>Auth: Provisioning Successful Response
-    Auth->>Auth: Generate JWT signed token (sub, email, tenantId, role)
-    Auth-->>Gateway: Return { message, tenantId, accessToken }
+    Client->>Gateway: POST /api/v1/superadmin/organizations { organizationName, adminEmail }
+    Gateway->>TenantSvc: TCP Message (ORGANIZATION.CREATE_ORGANIZATION)
+    TenantSvc->>TenantSvc: Validate & Generate unique slug & database name
+    TenantSvc->>TenantSvc: Create Tenant record (status = DRAFT, provisioningStatus = PENDING)
+    TenantSvc->>DB: Check if database exists idempotently
+    TenantSvc->>DB: CREATE DATABASE "hrms_<safe_identifier>";
+    TenantSvc->>DB: Connect to database & run base migrations (tenant_schema_migrations)
+    TenantSvc->>DB: Save encrypted credentials into tenant_database_configs
+    TenantSvc->>TenantSvc: Update Tenant (provisioningStatus: READY, status: PENDING_ADMIN_ACTIVATION, setupStatus: NOT_STARTED)
+    TenantSvc-->>Gateway: Return clean summary response (without raw DB passwords)
     Gateway-->>Client: HTTP 201 Created
 ```
 
 #### Detailed Breakdown:
-1. **Request Reception**: Client submits organization registration payload containing `companyName`, `domain`, `adminEmail`, `password`, `firstName`, and `lastName`.
-2. **Credential Validation & Hashing**: Auth Service checks if `adminEmail` is already registered. If valid, hashes the password using `bcrypt`.
-3. **Platform Credential Creation**: Creates an `AuthCredential` record mapping the user to a uniquely generated `tenantId` (`tenant-<domain>`).
+1. **Request Reception**: SuperAdmin submits organization creation payload (`organizationName`, `adminEmail`, `domain`, etc.).
+2. **Slug & Identifier Generation**: Sanitizes organization name to generate unique slug and PostgreSQL database identifier (`hrms_<safe_identifier>`).
+3. **Tenant Record Creation**: Creates `Tenant` record with initial status `DRAFT` and `provisioningStatus: PENDING`.
 4. **Database Provisioning (`TenantProvisioningService`)**:
-   - Executes SQL statement: `CREATE DATABASE "hrms_<tenant_id>";`
-   - Initializes connection to `hrms_<tenant_id>` and runs `sequelize.sync({ force: false })` to create all required tables (`users`, `roles`, `departments`, `employee_profiles`, `tasks`, etc.).
-   - Stores connection configuration (`host`, `port`, `dbName`, `username`, `password`) in the platform `tenant_database_configs` table.
-5. **JWT Issuance**: Signs a JWT containing contextual claims:
-   ```json
-   {
-     "sub": "user-uuid-1234",
-     "email": "admin@acme.com",
-     "tenantId": "tenant-acme",
-     "role": "Admin"
-   }
-   ```
+   - Checks if database `hrms_<safe_identifier>` already exists.
+   - Executes SQL statement: `CREATE DATABASE "hrms_<safe_identifier>";`
+   - Runs base schema initialization (`tenant_schema_migrations`) and model table sync (`sequelize.sync({ force: false })`).
+   - Stores encrypted connection configuration (`host`, `port`, `dbName`, `username`, `encryptedPassword`) in `tenant_database_configs`.
+5. **State Transition**: Updates Tenant record to:
+   - `provisioningStatus = TenantProvisioningStatus.READY`
+   - `status = TenantStatus.PENDING_ADMIN_ACTIVATION`
+   - `setupStatus = TenantSetupStatus.NOT_STARTED`
 
 ---
 
@@ -149,11 +156,6 @@ sequenceDiagram
     Gateway-->>Client: HTTP 200 OK Response Data
 ```
 
-#### Key Technical Components:
-- **`TenantResolverMiddleware`**: Reads the `x-tenant-id` header or decodes bearer JWT token claims to determine tenant context.
-- **`TenantConnectionManager`**: Maintains an in-memory Map (`Map<string, Sequelize>`) of active database connection pools. This guarantees high performance without reconnecting on every HTTP request.
-- **`TenantModelProviderService`**: Dynamically binds Sequelize models to the target tenant connection instance so queries run exclusively against `hrms_<tenant_id>`.
-
 ---
 
 ### Phase 4: Role-Based Access Control (RBAC) Enforcement Flow
@@ -181,9 +183,6 @@ Incoming Request
        ▼
 Execute Controller Handler
 ```
-
-- `@RequireRoles('Admin', 'Manager')`: Restricts endpoint access to specific roles.
-- `@RequirePermissions('user:create', 'payroll:process')`: Restricts endpoint access to users assigned specific granular permissions.
 
 ---
 
@@ -227,33 +226,29 @@ sequenceDiagram
 
 ## 5. Verification & Testing
 
-To test the full Organization Flow locally:
+To test Organization Creation locally:
 
-1. **Onboard Organization**:
+1. **Create Organization via SuperAdmin**:
    ```bash
-   curl -X POST http://localhost:3000/api/v1/auth/register-tenant \
+   curl -X POST http://localhost:3000/api/v1/superadmin/organizations \
      -H "Content-Type: application/json" \
+     -H "Authorization: Bearer <superadmin_jwt_token>" \
      -d '{
-       "companyName": "Acme Corp",
-       "domain": "acme",
-       "adminEmail": "admin@acme.com",
-       "password": "Password123!",
-       "firstName": "John",
-       "lastName": "Doe"
+       "organizationName": "Acme Enterprises",
+       "adminEmail": "admin@acme-enterprises.com"
      }'
    ```
-2. **User Login**:
-   ```bash
-   curl -X POST http://localhost:3000/api/v1/auth/login \
-     -H "Content-Type: application/json" \
-     -d '{
-       "email": "admin@acme.com",
-       "password": "Password123!"
-     }'
-   ```
-3. **Execute Tenant-Isolated Request**:
-   ```bash
-   curl -X GET http://localhost:3000/api/v1/org/dashboard \
-     -H "x-tenant-id: tenant-acme" \
-     -H "Authorization: Bearer <your_jwt_token>"
+
+2. **Expected Response**:
+   ```json
+   {
+     "tenantId": "c4b12f6a-04b3-4f8a-9892-9653d9e21183",
+     "organizationName": "Acme Enterprises",
+     "slug": "acme-enterprises",
+     "databaseName": "hrms_c4b12f6a_04b3_4f8a_9892_9653d9e21183",
+     "status": "PENDING_ADMIN_ACTIVATION",
+     "provisioningStatus": "READY",
+     "setupStatus": "NOT_STARTED",
+     "message": "Organization database 'hrms_c4b12f6a_04b3_4f8a_9892_9653d9e21183' provisioned and initialized successfully. Pending Admin Activation."
+   }
    ```

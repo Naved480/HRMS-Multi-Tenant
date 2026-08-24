@@ -7,10 +7,12 @@ import {
   IsUUID,
   Default,
   ForeignKey,
+  BelongsTo,
 } from 'sequelize-typescript';
 import { Tenant } from './tenant.model';
+import { Department } from './department.model';
 
-@Table({ tableName: 'designations' })
+@Table({ tableName: 'designations', timestamps: true })
 export class Designation extends Model {
   @IsUUID(4)
   @PrimaryKey
@@ -24,4 +26,24 @@ export class Designation extends Model {
 
   @Column({ allowNull: false })
   declare title: string;
+
+  @Column({ allowNull: true })
+  declare code: string;
+
+  @Column({ type: DataType.TEXT, allowNull: true })
+  declare description: string;
+
+  @ForeignKey(() => Department)
+  @Column({ type: DataType.UUID, allowNull: true })
+  declare departmentId: string;
+
+  @BelongsTo(() => Department)
+  declare department: Department;
+
+  @Default(true)
+  @Column({ type: DataType.BOOLEAN, defaultValue: true })
+  declare isActive: boolean;
+
+  @BelongsTo(() => Tenant)
+  declare tenant: Tenant;
 }
