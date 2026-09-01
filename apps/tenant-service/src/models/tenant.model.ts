@@ -8,7 +8,14 @@ import {
   Default,
   CreatedAt,
   UpdatedAt,
+  HasOne,
+  HasMany,
 } from 'sequelize-typescript';
+import { TenantDatabaseConfig } from './tenant-database-config.model';
+import { Department } from './department.model';
+import { Designation } from './designation.model';
+import { OrganizationAdminInvitation } from './organization-admin-invitation.model';
+import { OrganizationModuleAccess } from './organization-module-access.model';
 
 export enum TenantStatus {
   DRAFT = 'DRAFT',
@@ -38,7 +45,7 @@ export class Tenant extends Model {
   @IsUUID(4)
   @PrimaryKey
   @Default(DataType.UUIDV4)
-  @Column
+  @Column(DataType.UUID)
   declare id: string;
 
   @Column({ allowNull: false })
@@ -46,6 +53,18 @@ export class Tenant extends Model {
 
   @Column({ allowNull: true })
   declare organizationName: string;
+
+  @Column({ allowNull: true })
+  declare shortName: string;
+
+  @Column({ allowNull: true })
+  declare officialEmail: string;
+
+  @Column({ allowNull: true })
+  declare companySize: string;
+
+  @Column({ allowNull: true })
+  declare logoUrl: string;
 
   @Column({ allowNull: true })
   declare legalName: string;
@@ -120,6 +139,21 @@ export class Tenant extends Model {
 
   @Column({ type: DataType.TEXT, allowNull: true })
   declare provisioningError: string;
+
+  @HasOne(() => TenantDatabaseConfig)
+  declare databaseConfig: TenantDatabaseConfig;
+
+  @HasMany(() => Department)
+  declare departments: Department[];
+
+  @HasMany(() => Designation)
+  declare designations: Designation[];
+
+  @HasMany(() => OrganizationAdminInvitation)
+  declare adminInvitations: OrganizationAdminInvitation[];
+
+  @HasMany(() => OrganizationModuleAccess)
+  declare moduleAccesses: OrganizationModuleAccess[];
 
   @CreatedAt
   declare createdAt: Date;

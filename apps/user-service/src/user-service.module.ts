@@ -8,6 +8,7 @@ import { UserServiceController } from './user-service.controller';
 import { UserService } from './services/user.service';
 import { RoleService } from './services/role.service';
 import { TenantModelProviderService } from './services/tenant-model-provider.service';
+import { PermissionRegistryService } from './services/permission-registry.service';
 
 @Module({
   imports: [
@@ -17,11 +18,13 @@ import { TenantModelProviderService } from './services/tenant-model-provider.ser
   controllers: [UserServiceController],
   providers: [
     TenantModelProviderService,
+    PermissionRegistryService,
     UserService,
     RoleService,
   ],
   exports: [
     TenantModelProviderService,
+    PermissionRegistryService,
     UserService,
     RoleService,
   ],

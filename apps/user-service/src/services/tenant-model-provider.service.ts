@@ -1,8 +1,9 @@
-import { Injectable, Scope, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { Sequelize } from 'sequelize-typescript';
 import {
   TenantRequestContextService,
   TenantConnectionManager,
+  TenantContextService,
 } from '@app/tenant-context';
 import {
   User,
@@ -12,12 +13,13 @@ import {
   RolePermission,
 } from '../models';
 
-@Injectable({ scope: Scope.REQUEST })
+@Injectable()
 export class TenantModelProviderService {
-  private connection?: Sequelize;
+  private connectionsMap = new Map<string, Sequelize>();
 
   constructor(
     private readonly requestContext: TenantRequestContextService,
+    private readonly tenantContextService: TenantContextService,
     private readonly connectionManager: TenantConnectionManager,
   ) {}
 
@@ -25,21 +27,30 @@ export class TenantModelProviderService {
    * Resolve and get the active Sequelize connection for the current request's tenant
    */
   async getConnection(): Promise<Sequelize> {
-    if (this.connection) {
-      return this.connection;
+    let options = this.requestContext.getConnectionOptions();
+    if (!options) {
+      const tenantId = this.tenantContextService.getTenantId();
+      if (tenantId) {
+        options = { tenantId } as any;
+      }
     }
 
-    const options = this.requestContext.getConnectionOptions();
-    if (!options) {
+    if (!options || !options.tenantId) {
       throw new BadRequestException(
         'Missing tenant context or connection options for current request. Please pass x-tenant-id header.',
       );
     }
 
+    const cacheKey = options.tenantId;
+    if (this.connectionsMap.has(cacheKey)) {
+      return this.connectionsMap.get(cacheKey)!;
+    }
+
     const connection = await this.connectionManager.getConnection(options);
     connection.addModels([User, Role, Permission, UserRole, RolePermission]);
-    this.connection = connection;
-    return this.connection;
+    await connection.sync({ force: false });
+    this.connectionsMap.set(cacheKey, connection);
+    return connection;
   }
 
   /**

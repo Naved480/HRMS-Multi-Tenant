@@ -14,6 +14,7 @@
     "build:all": "npm run build:api-gateway && npm run build:auth-service && npm run build:tenant-service && npm run build:user-service",
     "format": "prettier --write \"{apps,libs}/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start api-gateway",
+    "start:all": "npx concurrently -k -p \"[{name}]\" -n \"GATEWAY,AUTH,TENANT,USER\" -c \"cyan,magenta,blue,yellow\" \"npm run start:api-gateway\" \"npm run start:auth-service\" \"npm run start:tenant-service\" \"npm run start:user-service\"",
     "start:api-gateway": "nest start api-gateway --watch",
     "start:auth-service": "nest start auth-service --watch",
     "start:tenant-service": "nest start tenant-service --watch",
@@ -96,6 +97,14 @@
       "**/*.(t|j)s"
     ],
     "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "moduleNameMapper": {
+      "^@app/common$": "<rootDir>/libs/common/src",
+      "^@app/common/(.*)$": "<rootDir>/libs/common/src/$1",
+      "^@app/database$": "<rootDir>/libs/database/src",
+      "^@app/database/(.*)$": "<rootDir>/libs/database/src/$1",
+      "^@app/tenant-context$": "<rootDir>/libs/tenant-context/src",
+      "^@app/tenant-context/(.*)$": "<rootDir>/libs/tenant-context/src/$1"
+    }
   }
 }

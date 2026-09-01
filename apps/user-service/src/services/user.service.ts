@@ -205,4 +205,39 @@ export class UserService {
     const UserRoleModel = await this.modelProvider.getUserRoleModel();
     await UserRoleModel.destroy({ where: { userId, roleId } });
   }
+
+  /**
+   * Bulk set/replace roles assigned to a user in current tenant database
+   */
+  async setUserRoles(userId: string, roleIds: string[]): Promise<User> {
+    const user = await this.getUserById(userId);
+    const RoleModel = await this.modelProvider.getRoleModel();
+
+    // Verify all roleIds belong to current tenant database
+    const validRoles = await RoleModel.findAll({ where: { id: roleIds } });
+    if (validRoles.length !== roleIds.length) {
+      throw new BadRequestException(
+        'One or more specified role IDs do not exist in the current organization tenant database.',
+      );
+    }
+
+    const sequelize = await this.modelProvider.getConnection();
+    const transaction = await sequelize.transaction();
+
+    try {
+      const UserRoleModel = await this.modelProvider.getUserRoleModel();
+      await UserRoleModel.destroy({ where: { userId }, transaction });
+
+      for (const rId of roleIds) {
+        await UserRoleModel.create({ userId, roleId: rId }, { transaction });
+      }
+
+      await transaction.commit();
+    } catch (err) {
+      await transaction.rollback();
+      throw err;
+    }
+
+    return this.getUserById(userId);
+  }
 }

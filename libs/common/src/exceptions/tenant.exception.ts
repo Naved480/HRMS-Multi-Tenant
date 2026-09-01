@@ -7,6 +7,7 @@ export enum TenantErrorCode {
   TENANT_SUSPENDED = 'TENANT_SUSPENDED',
   TENANT_EXPIRED = 'TENANT_EXPIRED',
   INVALID_TENANT_CONTEXT = 'INVALID_TENANT_CONTEXT',
+  MODULE_NOT_ENABLED = 'MODULE_NOT_ENABLED',
 }
 
 export class TenantException extends HttpException {

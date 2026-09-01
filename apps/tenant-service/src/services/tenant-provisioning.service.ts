@@ -2,9 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Sequelize } from 'sequelize';
 import { TenantService } from './tenant.service';
 import { TenantDatabaseConfigService } from './tenant-database-config.service';
+import { OrganizationModuleAccessService } from './organization-module-access.service';
+import { OrganizationAdminInvitationService, AdminInvitationResult } from './organization-admin-invitation.service';
 import { TenantConnectionManager } from '@app/tenant-context';
 import { TenantProvisioningStatus, TenantStatus, TenantSetupStatus } from '../models/tenant.model';
-import { TenantException, TenantErrorCode } from '@app/common';
+import { TenantException, TenantErrorCode, CreateOrganizationOnboardingDto, ConfigureModuleAccessDto } from '@app/common';
 
 export interface OrganizationCreationResult {
   tenantId: string;
@@ -14,6 +16,7 @@ export interface OrganizationCreationResult {
   status: TenantStatus;
   provisioningStatus: TenantProvisioningStatus;
   setupStatus: TenantSetupStatus;
+  invitation?: AdminInvitationResult;
   message: string;
 }
 
@@ -25,6 +28,8 @@ export class TenantProvisioningService {
     private tenantService: TenantService,
     private tenantDbConfigService: TenantDatabaseConfigService,
     private tenantConnectionManager: TenantConnectionManager,
+    private moduleAccessService: OrganizationModuleAccessService,
+    private invitationService: OrganizationAdminInvitationService,
   ) {}
 
   /**
@@ -50,16 +55,21 @@ export class TenantProvisioningService {
   }
 
   /**
-   * Full Organization Creation & Tenant DB Provisioning (Phases C, D, E, F, G, H, I)
+   * Full Organization Creation & Tenant DB Provisioning Flow (Steps 1-4)
    */
-  async createOrganizationAndProvision(data: {
-    organizationName: string;
-    adminEmail: string;
-    adminName?: string;
-    domain?: string;
-    teamStrength?: string;
-  }): Promise<OrganizationCreationResult> {
-    const slug = this.generateSlug(data.organizationName, data.domain);
+  async createOrganizationAndProvision(data: any): Promise<OrganizationCreationResult> {
+    const orgName = data.organizationName;
+    const adminEmail = data.adminDetails?.workEmail || data.adminEmail;
+    const firstName = data.adminDetails?.firstName || (data.adminName ? data.adminName.split(' ')[0] : 'Admin');
+    const lastName = data.adminDetails?.lastName || (data.adminName ? data.adminName.split(' ').slice(1).join(' ') : '');
+    const fullAdminName = data.adminDetails ? `${firstName} ${lastName}`.trim() : (data.adminName || 'Admin');
+    const domain = data.domain;
+    const industry = data.adminDetails?.industry || data.industry;
+    const phone = data.adminDetails?.phone || data.phone;
+    const sendInvitation = data.adminDetails?.sendInvitation !== false && data.sendInvitation !== false;
+    const customInvitationMessage = data.adminDetails?.customInvitationMessage || data.customInvitationMessage;
+
+    const slug = this.generateSlug(orgName, domain);
 
     // Check duplicate organization slug
     const existing = await this.tenantService.getTenantByDomainOrSlug(slug);
@@ -72,12 +82,14 @@ export class TenantProvisioningService {
 
     // Step 1: Create Tenant Record in DRAFT status
     const tenant = await this.tenantService.createTenant({
-      name: data.organizationName,
-      organizationName: data.organizationName,
+      name: orgName,
+      organizationName: orgName,
       slug,
       domain: slug,
-      email: data.adminEmail,
-      adminEmail: data.adminEmail,
+      email: adminEmail,
+      adminEmail: adminEmail,
+      industry: industry || null,
+      phone: phone || null,
       status: TenantStatus.DRAFT,
       setupStatus: TenantSetupStatus.NOT_STARTED,
       provisioningStatus: TenantProvisioningStatus.PENDING,
@@ -87,7 +99,30 @@ export class TenantProvisioningService {
     const databaseName = this.generateDatabaseName(tenant.id);
 
     // Step 2: Trigger Idempotent DB Provisioning Flow
-    return this.provisionTenantDatabase(tenant.id, databaseName, data.organizationName, slug);
+    const provisioningResult = await this.provisionTenantDatabase(tenant.id, databaseName, orgName, slug);
+
+    // Step 3: Configure Organization Module Access
+    const modules: ConfigureModuleAccessDto[] = data.modules || [];
+    await this.moduleAccessService.setOrganizationModules(tenant.id, modules);
+
+    // Step 4: Handle Initial Organization Admin Invitation
+    let invitationResult: AdminInvitationResult | undefined;
+    if (sendInvitation) {
+      invitationResult = await this.invitationService.createAdminInvitation(
+        tenant.id,
+        adminEmail,
+        fullAdminName,
+        'SuperAdmin',
+        phone,
+        customInvitationMessage,
+      );
+    }
+
+    return {
+      ...provisioningResult,
+      invitation: invitationResult,
+      message: `Organization '${orgName}' created and database provisioned successfully. Status: PENDING_ADMIN_ACTIVATION.`,
+    };
   }
 
   /**
@@ -230,6 +265,11 @@ export class TenantProvisioningService {
    * Run Base Tenant Schema Initialization & Migrations (Phase I)
    */
   private async runMigrationsAndBaseSchema(databaseName: string): Promise<void> {
+    const isSSL =
+      process.env.TENANT_DB_HOST?.includes('neon.tech') ||
+      process.env.PLATFORM_DB_HOST?.includes('neon.tech') ||
+      process.env.DB_SSL === 'true';
+
     const sequelize = new Sequelize({
       host: process.env.TENANT_DB_HOST || 'localhost',
       port: parseInt(process.env.TENANT_DB_PORT || '5432'),
@@ -237,6 +277,7 @@ export class TenantProvisioningService {
       password: process.env.TENANT_DB_PASSWORD || 'password',
       database: databaseName,
       dialect: 'postgres',
+      dialectOptions: isSSL ? { ssl: { require: true, rejectUnauthorized: false } } : undefined,
       logging: false,
     });
 
@@ -303,12 +344,19 @@ export class TenantProvisioningService {
   }
 
   private getPlatformMasterSequelize(): Sequelize {
+    const isSSL =
+      process.env.TENANT_DB_HOST?.includes('neon.tech') ||
+      process.env.PLATFORM_DB_HOST?.includes('neon.tech') ||
+      process.env.DB_SSL === 'true';
+
     return new Sequelize({
       host: process.env.TENANT_DB_HOST || 'localhost',
       port: parseInt(process.env.TENANT_DB_PORT || '5432'),
       username: process.env.TENANT_DB_USER || 'postgres',
       password: process.env.TENANT_DB_PASSWORD || 'password',
+      database: process.env.PLATFORM_DB_NAME || 'neondb',
       dialect: 'postgres',
+      dialectOptions: isSSL ? { ssl: { require: true, rejectUnauthorized: false } } : undefined,
       logging: false,
     });
   }

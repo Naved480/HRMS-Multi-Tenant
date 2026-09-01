@@ -2,17 +2,20 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { SERVICES } from '@app/common';
+import { TenantContextModule } from '@app/tenant-context';
 import { ApiGatewayAuthController } from './controllers/auth.controller';
 import { SuperAdminController } from './controllers/superadmin.controller';
 import { OrganizationAdminActivationController } from './controllers/activation.controller';
 import { OrganizationSetupController } from './controllers/organization-setup.controller';
 import { OrganizationPolicyController } from './controllers/organization-policy.controller';
 import { OrganizationModulesController } from './controllers/organization-modules.controller';
+import { OrganizationRolesController } from './controllers/organization-roles.controller';
 import { ApiGatewayHealthController } from './controllers/health.controller';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    TenantContextModule,
     ClientsModule.registerAsync([
       {
         name: SERVICES.AUTH_SERVICE,
@@ -60,6 +63,7 @@ import { ApiGatewayHealthController } from './controllers/health.controller';
     OrganizationSetupController,
     OrganizationPolicyController,
     OrganizationModulesController,
+    OrganizationRolesController,
   ],
 })
 export class ApiGatewayModule {}

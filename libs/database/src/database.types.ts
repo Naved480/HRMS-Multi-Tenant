@@ -1,10 +1,12 @@
 export interface DatabaseConfig {
-  host: string;
-  port: number;
-  username: string;
-  password: string;
-  database: string;
+  url?: string;
+  host?: string;
+  port?: number;
+  username?: string;
+  password?: string;
+  database?: string;
   dialect: 'postgres' | 'mysql';
+  dialectOptions?: any;
   logging: boolean | ((sql: string) => void);
   synchronize: boolean;
   autoLoadEntities: boolean;

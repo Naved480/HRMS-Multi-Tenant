@@ -12,6 +12,8 @@ import { OrganizationAdminInvitationService } from './services/organization-admi
 import { OrganizationSetupService } from './services/organization-setup.service';
 import { PolicyConfigurationValidatorService } from './services/policy-configuration-validator.service';
 import { OrganizationPolicyService } from './services/organization-policy.service';
+import { OrganizationModuleAccessService } from './services/organization-module-access.service';
+import { OrganizationOnboardingValidatorService } from './services/organization-onboarding-validator.service';
 import { TenantServiceController } from './tenant-service.controller';
 import {
   Tenant,
@@ -23,6 +25,7 @@ import {
   LeavePolicy,
   AttendancePolicy,
   OrganizationPolicy,
+  OrganizationModuleAccess,
 } from './models';
 
 @Module({
@@ -39,6 +42,7 @@ import {
       LeavePolicy,
       AttendancePolicy,
       OrganizationPolicy,
+      OrganizationModuleAccess,
     ]),
     TenantContextModule,
     ClientsModule.registerAsync([
@@ -76,6 +80,8 @@ import {
     OrganizationSetupService,
     PolicyConfigurationValidatorService,
     OrganizationPolicyService,
+    OrganizationModuleAccessService,
+    OrganizationOnboardingValidatorService,
   ],
   controllers: [TenantServiceController],
   exports: [
@@ -86,6 +92,8 @@ import {
     OrganizationSetupService,
     PolicyConfigurationValidatorService,
     OrganizationPolicyService,
+    OrganizationModuleAccessService,
+    OrganizationOnboardingValidatorService,
   ],
 })
 export class TenantServiceModule {}

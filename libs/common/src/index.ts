@@ -6,6 +6,8 @@ export * from './pipes';
 export * from './utils';
 export * from './dto/auth.dto';
 export * from './dto/organization.dto';
+export * from './dto/organization-module.dto';
+export * from './dto/organization-role.dto';
 export * from './dto/invitation.dto';
 export * from './dto/setup.dto';
 export * from './dto/policy.dto';
@@ -52,11 +54,35 @@ export const MESSAGE_PATTERNS = {
   },
   USER: {
     GET_USER: 'user.get',
+    GET_ALL: 'user.get_all',
     CREATE_USER: 'user.create',
+    UPDATE_USER: 'user.update',
+    DELETE_USER: 'user.delete',
+    ASSIGN_ROLE: 'user.assign_role',
+    REVOKE_ROLE: 'user.revoke_role',
+    SET_ROLES: 'user.set_roles',
     CREATE_ORGANIZATION_ADMIN: 'user.create_organization_admin',
+  },
+  ROLE: {
+    GET_ALL: 'role.get_all',
+    GET_BY_ID: 'role.get_by_id',
+    CREATE: 'role.create',
+    UPDATE: 'role.update',
+    DELETE: 'role.delete',
+    ASSIGN_PERMISSION: 'role.assign_permission',
+    REVOKE_PERMISSION: 'role.revoke_permission',
+    SET_PERMISSIONS: 'role.set_permissions',
+  },
+  PERMISSION: {
+    GET_AVAILABLE: 'permission.get_available',
   },
   ORGANIZATION: {
     CREATE_ORGANIZATION: 'org.create_organization',
+    VALIDATE_ONBOARDING: 'org.validate_onboarding',
+    REVIEW_ONBOARDING: 'org.review_onboarding',
+    GET_MODULE_ACCESS: 'org.get_module_access',
+    UPDATE_MODULE_ACCESS: 'org.update_module_access',
+    CHECK_MODULE_ACCESS: 'org.check_module_access',
     GET_EMPLOYEES: 'org.get_employees',
   },
   ORGANIZATION_SETUP: {

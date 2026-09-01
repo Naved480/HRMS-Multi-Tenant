@@ -16,11 +16,11 @@ export class AttendancePolicy extends Model {
   @IsUUID(4)
   @PrimaryKey
   @Default(DataType.UUIDV4)
-  @Column
+  @Column(DataType.UUID)
   declare id: string;
 
   @ForeignKey(() => Tenant)
-  @Column({ allowNull: false, unique: true })
+  @Column({ type: DataType.UUID, allowNull: false, unique: true })
   declare tenantId: string;
 
   @Default(15)

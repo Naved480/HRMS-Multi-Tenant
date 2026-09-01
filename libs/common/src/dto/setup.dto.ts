@@ -17,6 +17,26 @@ export class UpdateOrganizationProfileDto {
   @IsOptional()
   organizationName?: string;
 
+  @ApiProperty({ example: 'CLS', required: false })
+  @IsString()
+  @IsOptional()
+  shortName?: string;
+
+  @ApiProperty({ example: 'admin@clariftstudio.com', required: false })
+  @IsString()
+  @IsOptional()
+  officialEmail?: string;
+
+  @ApiProperty({ example: '200-500', required: false })
+  @IsString()
+  @IsOptional()
+  companySize?: string;
+
+  @ApiProperty({ example: 'https://example.com/logo.png', required: false })
+  @IsString()
+  @IsOptional()
+  logoUrl?: string;
+
   @ApiProperty({ example: 'Acme Enterprises Legal Ltd.', required: false })
   @IsString()
   @IsOptional()

@@ -16,11 +16,11 @@ export class LeavePolicy extends Model {
   @IsUUID(4)
   @PrimaryKey
   @Default(DataType.UUIDV4)
-  @Column
+  @Column(DataType.UUID)
   declare id: string;
 
   @ForeignKey(() => Tenant)
-  @Column({ allowNull: false })
+  @Column({ type: DataType.UUID, allowNull: false })
   declare tenantId: string;
 
   @Column({ allowNull: false })

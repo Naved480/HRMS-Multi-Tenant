@@ -7,3 +7,4 @@ export { WorkingHours } from './working-hours.model';
 export { LeavePolicy } from './leave-policy.model';
 export { AttendancePolicy } from './attendance-policy.model';
 export { OrganizationPolicy } from './organization-policy.model';
+export { OrganizationModuleAccess } from './organization-module-access.model';

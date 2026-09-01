@@ -6,6 +6,7 @@ import { TenantResolverMiddleware } from './middleware/tenant-resolver.middlewar
 import { TenantGuard } from './guards/tenant.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { PermissionsGuard } from './guards/permissions.guard';
+import { OrganizationModuleGuard } from './guards/organization-module.guard';
 
 @Global()
 @Module({
@@ -17,6 +18,7 @@ import { PermissionsGuard } from './guards/permissions.guard';
     TenantGuard,
     RolesGuard,
     PermissionsGuard,
+    OrganizationModuleGuard,
   ],
   exports: [
     TenantContextService,
@@ -26,6 +28,7 @@ import { PermissionsGuard } from './guards/permissions.guard';
     TenantGuard,
     RolesGuard,
     PermissionsGuard,
+    OrganizationModuleGuard,
   ],
 })
 export class TenantContextModule {}

@@ -28,6 +28,9 @@ import { OrganizationAdminInvitationService } from './services/organization-admi
 import { OrganizationSetupService } from './services/organization-setup.service';
 import { OrganizationPolicyService } from './services/organization-policy.service';
 
+import { OrganizationModuleAccessService } from './services/organization-module-access.service';
+import { OrganizationOnboardingValidatorService } from './services/organization-onboarding-validator.service';
+
 @Controller('tenants')
 export class TenantServiceController {
   constructor(
@@ -36,6 +39,8 @@ export class TenantServiceController {
     private invitationService: OrganizationAdminInvitationService,
     private setupService: OrganizationSetupService,
     private policyService: OrganizationPolicyService,
+    private moduleAccessService: OrganizationModuleAccessService,
+    private onboardingValidatorService: OrganizationOnboardingValidatorService,
   ) {}
 
   @MessagePattern(MESSAGE_PATTERNS.HEALTH.CHECK)
@@ -44,8 +49,33 @@ export class TenantServiceController {
   }
 
   @MessagePattern(MESSAGE_PATTERNS.ORGANIZATION.CREATE_ORGANIZATION)
-  async createOrganizationMessage(@Payload() dto: CreateOrganizationDto) {
+  async createOrganizationMessage(@Payload() dto: any) {
     return this.tenantProvisioningService.createOrganizationAndProvision(dto);
+  }
+
+  @MessagePattern(MESSAGE_PATTERNS.ORGANIZATION.VALIDATE_ONBOARDING)
+  async validateOnboardingMessage(@Payload() dto: any) {
+    return this.onboardingValidatorService.validateOnboardingPayload(dto);
+  }
+
+  @MessagePattern(MESSAGE_PATTERNS.ORGANIZATION.REVIEW_ONBOARDING)
+  async reviewOnboardingMessage(@Payload() dto: any) {
+    return this.onboardingValidatorService.generateReviewSummary(dto);
+  }
+
+  @MessagePattern(MESSAGE_PATTERNS.ORGANIZATION.GET_MODULE_ACCESS)
+  async getModuleAccessMessage(@Payload() data: { tenantId: string }) {
+    return this.moduleAccessService.getOrganizationModules(data.tenantId);
+  }
+
+  @MessagePattern(MESSAGE_PATTERNS.ORGANIZATION.UPDATE_MODULE_ACCESS)
+  async updateModuleAccessMessage(@Payload() data: { tenantId: string; modules: any[] }) {
+    return this.moduleAccessService.setOrganizationModules(data.tenantId, data.modules);
+  }
+
+  @MessagePattern(MESSAGE_PATTERNS.ORGANIZATION.CHECK_MODULE_ACCESS)
+  async checkModuleAccessMessage(@Payload() data: { tenantId: string; moduleKey: string; action?: string }) {
+    return this.moduleAccessService.isModuleEnabled(data.tenantId, data.moduleKey, data.action);
   }
 
   @MessagePattern(MESSAGE_PATTERNS.TENANT.PROVISION_TENANT)

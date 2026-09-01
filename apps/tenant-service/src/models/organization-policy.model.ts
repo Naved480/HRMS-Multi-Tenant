@@ -28,7 +28,7 @@ export class OrganizationPolicy extends Model {
   @IsUUID(4)
   @PrimaryKey
   @Default(DataType.UUIDV4)
-  @Column
+  @Column(DataType.UUID)
   declare id: string;
 
   // ==========================================
@@ -36,7 +36,7 @@ export class OrganizationPolicy extends Model {
   // ==========================================
 
   @ForeignKey(() => Tenant)
-  @Column({ allowNull: false })
+  @Column({ type: DataType.UUID, allowNull: false })
   declare tenantId: string;
 
   @BelongsTo(() => Tenant)

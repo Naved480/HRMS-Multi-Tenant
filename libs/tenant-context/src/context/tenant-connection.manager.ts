@@ -29,13 +29,26 @@ export class TenantConnectionManager implements OnModuleDestroy {
 
     const connectionPromise = (async () => {
       try {
+        const host = options.host || process.env.TENANT_DB_HOST || process.env.PLATFORM_DB_HOST || 'localhost';
+        const port = options.port || parseInt(process.env.TENANT_DB_PORT || process.env.PLATFORM_DB_PORT || '5432');
+        const username = options.username || process.env.TENANT_DB_USER || process.env.PLATFORM_DB_USER || 'postgres';
+        const password = options.password || process.env.TENANT_DB_PASSWORD || process.env.PLATFORM_DB_PASSWORD || 'password';
+        const safeId = options.tenantId.replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase();
+        const database = options.databaseName || `hrms_${safeId}`;
+
+        const isSSL =
+          host.includes('neon.tech') ||
+          process.env.PLATFORM_DB_HOST?.includes('neon.tech') ||
+          process.env.DB_SSL === 'true';
+
         const connection = new Sequelize({
-          host: options.host,
-          port: options.port,
-          username: options.username,
-          password: options.password,
-          database: options.databaseName,
+          host,
+          port,
+          username,
+          password,
+          database,
           dialect: options.dialect || 'postgres',
+          dialectOptions: isSSL ? { ssl: { require: true, rejectUnauthorized: false } } : undefined,
           logging: process.env.NODE_ENV === 'development' ? (msg) => this.logger.debug(msg) : false,
           pool: {
             max: 5,

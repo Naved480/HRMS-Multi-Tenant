@@ -20,6 +20,8 @@ export class TenantService {
     domain?: string;
     email?: string;
     adminEmail?: string;
+    industry?: string;
+    phone?: string;
     planType?: string;
     status?: TenantStatus;
     setupStatus?: TenantSetupStatus;
@@ -33,6 +35,8 @@ export class TenantService {
       domain: data.domain || data.slug,
       email: data.email || data.adminEmail,
       adminEmail: data.adminEmail || data.email,
+      industry: data.industry,
+      phone: data.phone,
       planType: data.planType || 'standard',
       status: data.status || TenantStatus.DRAFT,
       setupStatus: data.setupStatus || TenantSetupStatus.NOT_STARTED,

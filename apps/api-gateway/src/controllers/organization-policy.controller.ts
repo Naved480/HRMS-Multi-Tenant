@@ -31,9 +31,21 @@ import {
   CreateNewPolicyVersionDto,
 } from '@app/common';
 
+import { UseGuards } from '@nestjs/common';
+import { HRMSModuleKey, ModuleAction } from '@app/common';
+import {
+  TenantGuard,
+  RolesGuard,
+  PermissionsGuard,
+  OrganizationModuleGuard,
+  RequireModule,
+} from '@app/tenant-context';
+
 @ApiTags('Dynamic Policy Engine')
 @Controller('organization/policies')
 @ApiBearerAuth()
+@UseGuards(TenantGuard, RolesGuard, PermissionsGuard, OrganizationModuleGuard)
+@RequireModule(HRMSModuleKey.SETTINGS)
 @ApiHeader({ name: 'x-tenant-id', description: 'Organization Tenant ID', required: true })
 export class OrganizationPolicyController {
   constructor(

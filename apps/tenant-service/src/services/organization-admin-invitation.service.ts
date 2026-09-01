@@ -51,6 +51,8 @@ export class OrganizationAdminInvitationService {
     adminEmail?: string,
     adminName?: string,
     createdBy?: string,
+    phone?: string,
+    customMessage?: string,
   ): Promise<AdminInvitationResult> {
     const tenant = await this.tenantService.getTenantById(tenantId);
 
@@ -84,6 +86,8 @@ export class OrganizationAdminInvitationService {
       tenantId: tenant.id,
       adminEmail: targetEmail,
       adminName: adminName || tenant.name,
+      phone,
+      customMessage,
       tokenHash,
       status: InvitationStatus.PENDING,
       expiresAt,

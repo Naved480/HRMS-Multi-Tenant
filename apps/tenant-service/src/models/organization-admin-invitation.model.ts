@@ -39,6 +39,12 @@ export class OrganizationAdminInvitation extends Model {
   @Column({ type: DataType.STRING, allowNull: false })
   declare adminEmail: string;
 
+  @Column({ type: DataType.STRING, allowNull: true })
+  declare phone: string;
+
+  @Column({ type: DataType.TEXT, allowNull: true })
+  declare customMessage: string;
+
   @Column({ type: DataType.STRING, allowNull: false })
   declare tokenHash: string;
 

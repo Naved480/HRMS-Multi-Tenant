@@ -1,12 +1,23 @@
-import { Controller, Get, Post, Body, Headers } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiHeader } from '@nestjs/swagger';
+import { Controller, Get, Post, Body, Headers, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiHeader, ApiBearerAuth } from '@nestjs/swagger';
+import { HRMSModuleKey, ModuleAction } from '@app/common';
+import {
+  TenantGuard,
+  RolesGuard,
+  PermissionsGuard,
+  OrganizationModuleGuard,
+  RequireModule,
+} from '@app/tenant-context';
 
 @ApiTags('Organization Modules')
 @Controller('org')
+@ApiBearerAuth()
+@UseGuards(TenantGuard, RolesGuard, PermissionsGuard, OrganizationModuleGuard)
 @ApiHeader({ name: 'x-tenant-id', description: 'Target Organization Tenant ID', required: true })
 export class OrganizationModulesController {
 
   @Get('dashboard')
+  @RequireModule(HRMSModuleKey.DASHBOARD)
   @ApiOperation({ summary: 'Main Dashboard stats & metrics' })
   getDashboard(@Headers('x-tenant-id') tenantId: string) {
     return {
@@ -22,6 +33,7 @@ export class OrganizationModulesController {
   }
 
   @Get('geofence/locations')
+  @RequireModule(HRMSModuleKey.ATTENDANCE)
   @ApiOperation({ summary: 'Geofencing Attendance boundaries' })
   getGeofenceLocations(@Headers('x-tenant-id') tenantId: string) {
     return {
@@ -33,6 +45,7 @@ export class OrganizationModulesController {
   }
 
   @Post('pos/transactions')
+  @RequireModule(HRMSModuleKey.PAYROLL, ModuleAction.CREATE)
   @ApiOperation({ summary: 'Record Point of Sale (POS) transaction' })
   createPOSTransaction(@Headers('x-tenant-id') tenantId: string, @Body() body: any) {
     return {
@@ -45,6 +58,7 @@ export class OrganizationModulesController {
   }
 
   @Get('announcements')
+  @RequireModule(HRMSModuleKey.SETTINGS)
   @ApiOperation({ summary: 'Notice board and announcements' })
   getAnnouncements(@Headers('x-tenant-id') tenantId: string) {
     return {
@@ -56,6 +70,7 @@ export class OrganizationModulesController {
   }
 
   @Get('surveys')
+  @RequireModule(HRMSModuleKey.PERFORMANCE)
   @ApiOperation({ summary: 'Employee surveys and feedback' })
   getSurveys(@Headers('x-tenant-id') tenantId: string) {
     return {
@@ -67,6 +82,7 @@ export class OrganizationModulesController {
   }
 
   @Get('web3/nft-rewards')
+  @RequireModule(HRMSModuleKey.PERFORMANCE)
   @ApiOperation({ summary: 'NFT & Web3 HR Achievement Badges' })
   getNFTRewards(@Headers('x-tenant-id') tenantId: string) {
     return {
@@ -78,6 +94,7 @@ export class OrganizationModulesController {
   }
 
   @Get('community/posts')
+  @RequireModule(HRMSModuleKey.USER_MANAGEMENT)
   @ApiOperation({ summary: 'HR Community discussions' })
   getCommunityPosts(@Headers('x-tenant-id') tenantId: string) {
     return {
@@ -89,6 +106,7 @@ export class OrganizationModulesController {
   }
 
   @Get('penalties')
+  @RequireModule(HRMSModuleKey.ATTENDANCE)
   @ApiOperation({ summary: 'Interactive communication penalties log' })
   getPenalties(@Headers('x-tenant-id') tenantId: string) {
     return {
@@ -100,6 +118,7 @@ export class OrganizationModulesController {
   }
 
   @Get('assets')
+  @RequireModule(HRMSModuleKey.ASSETS)
   @ApiOperation({ summary: 'Asset Management list' })
   getAssets(@Headers('x-tenant-id') tenantId: string) {
     return {
@@ -111,6 +130,7 @@ export class OrganizationModulesController {
   }
 
   @Get('expenses')
+  @RequireModule(HRMSModuleKey.EXPENSES)
   @ApiOperation({ summary: 'Expense claims & approvals' })
   getExpenses(@Headers('x-tenant-id') tenantId: string) {
     return {
@@ -122,6 +142,7 @@ export class OrganizationModulesController {
   }
 
   @Get('tickets')
+  @RequireModule(HRMSModuleKey.TICKETS)
   @ApiOperation({ summary: 'Helpdesk & Ticket Management' })
   getTickets(@Headers('x-tenant-id') tenantId: string) {
     return {
@@ -133,6 +154,7 @@ export class OrganizationModulesController {
   }
 
   @Get('audit-logs')
+  @RequireModule(HRMSModuleKey.REPORTS)
   @ApiOperation({ summary: 'Audit trail and system activity logs' })
   getAuditLogs(@Headers('x-tenant-id') tenantId: string) {
     return {
