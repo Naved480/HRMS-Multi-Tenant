@@ -27,58 +27,49 @@
         "tsConfigPath": "apps/auth-service/tsconfig.app.json"
       }
     },
-    "organization-service": {
+    "tenant-service": {
       "type": "application",
-      "root": "apps/organization-service",
+      "root": "apps/tenant-service",
       "entryFile": "main",
-      "sourceRoot": "apps/organization-service/src",
+      "sourceRoot": "apps/tenant-service/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/organization-service/tsconfig.app.json"
+        "tsConfigPath": "apps/tenant-service/tsconfig.app.json"
       }
     },
-    "attendance-leave-service": {
+    "user-service": {
       "type": "application",
-      "root": "apps/attendance-leave-service",
+      "root": "apps/user-service",
       "entryFile": "main",
-      "sourceRoot": "apps/attendance-leave-service/src",
+      "sourceRoot": "apps/user-service/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/attendance-leave-service/tsconfig.app.json"
+        "tsConfigPath": "apps/user-service/tsconfig.app.json"
       }
     },
-    "payroll-service": {
-      "type": "application",
-      "root": "apps/payroll-service",
-      "entryFile": "main",
-      "sourceRoot": "apps/payroll-service/src",
+    "common": {
+      "type": "library",
+      "root": "libs/common",
+      "entryFile": "index",
+      "sourceRoot": "libs/common/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/payroll-service/tsconfig.app.json"
+        "tsConfigPath": "libs/common/tsconfig.lib.json"
       }
     },
-    "performance-work-service": {
-      "type": "application",
-      "root": "apps/performance-work-service",
-      "entryFile": "main",
-      "sourceRoot": "apps/performance-work-service/src",
+    "database": {
+      "type": "library",
+      "root": "libs/database",
+      "entryFile": "index",
+      "sourceRoot": "libs/database/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/performance-work-service/tsconfig.app.json"
+        "tsConfigPath": "libs/database/tsconfig.lib.json"
       }
     },
-    "recruitment-service": {
-      "type": "application",
-      "root": "apps/recruitment-service",
-      "entryFile": "main",
-      "sourceRoot": "apps/recruitment-service/src",
+    "tenant-context": {
+      "type": "library",
+      "root": "libs/tenant-context",
+      "entryFile": "index",
+      "sourceRoot": "libs/tenant-context/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/recruitment-service/tsconfig.app.json"
-      }
-    },
-    "lms-service": {
-      "type": "application",
-      "root": "apps/lms-service",
-      "entryFile": "main",
-      "sourceRoot": "apps/lms-service/src",
-      "compilerOptions": {
-        "tsConfigPath": "apps/lms-service/tsconfig.app.json"
+        "tsConfigPath": "libs/tenant-context/tsconfig.lib.json"
       }
     }
   }
