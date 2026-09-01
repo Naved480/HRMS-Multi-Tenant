@@ -7,12 +7,21 @@
   "license": "UNLICENSED",
   "scripts": {
     "build": "nest build",
-    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
-    "start": "nest start",
-    "start:dev": "nest start --watch",
-    "start:debug": "nest start --debug --watch",
-    "start:prod": "node dist/main",
-    "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
+    "build:api-gateway": "nest build api-gateway",
+    "build:auth-service": "nest build auth-service",
+    "build:tenant-service": "nest build tenant-service",
+    "build:user-service": "nest build user-service",
+    "build:all": "npm run build:api-gateway && npm run build:auth-service && npm run build:tenant-service && npm run build:user-service",
+    "format": "prettier --write \"{apps,libs}/**/*.ts\" \"test/**/*.ts\"",
+    "start": "nest start api-gateway",
+    "start:all": "npx concurrently -k -p \"[{name}]\" -n \"GATEWAY,AUTH,TENANT,USER\" -c \"cyan,magenta,blue,yellow\" \"npm run start:api-gateway\" \"npm run start:auth-service\" \"npm run start:tenant-service\" \"npm run start:user-service\"",
+    "start:api-gateway": "nest start api-gateway --watch",
+    "start:auth-service": "nest start auth-service --watch",
+    "start:tenant-service": "nest start tenant-service --watch",
+    "start:user-service": "nest start user-service --watch",
+    "start:debug": "nest start api-gateway --debug --watch",
+    "start:prod": "node dist/apps/api-gateway/main",
+    "lint": "eslint \"{apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
@@ -78,7 +87,8 @@
       "json",
       "ts"
     ],
-    "rootDir": "src",
+    "rootDir": ".",
+    "roots": ["<rootDir>/apps", "<rootDir>/libs"],
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
@@ -87,6 +97,14 @@
       "**/*.(t|j)s"
     ],
     "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "moduleNameMapper": {
+      "^@app/common$": "<rootDir>/libs/common/src",
+      "^@app/common/(.*)$": "<rootDir>/libs/common/src/$1",
+      "^@app/database$": "<rootDir>/libs/database/src",
+      "^@app/database/(.*)$": "<rootDir>/libs/database/src/$1",
+      "^@app/tenant-context$": "<rootDir>/libs/tenant-context/src",
+      "^@app/tenant-context/(.*)$": "<rootDir>/libs/tenant-context/src/$1"
+    }
   }
 }

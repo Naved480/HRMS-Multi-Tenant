@@ -4,5 +4,5 @@
     "declaration": false,
     "outDir": "../../dist/apps/api-gateway"
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*", "../../libs/**/*"]
 }
